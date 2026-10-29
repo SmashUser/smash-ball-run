@@ -1,6 +1,8 @@
 # Smash・Ball・Run
 
-スマメイトの「レーティング対戦」を再現したファンサイト「Smash・Ball・Run」のソースコードです。
+[![check](https://github.com/SmashUser/smash-ball-run/actions/workflows/check.yml/badge.svg)](https://github.com/SmashUser/smash-ball-run/actions/workflows/check.yml)
+
+スマメイトの「レーティング対戦」を再現したファンサイト「Smash・Ball・Run」（https://smashballrun.net）のソースコードです。
 
 利用者の皆さんに安心して使っていただくため、サイトのプログラムを公開しています。本番環境で動いているのは、このリポジトリのコードに、公開していない設定値（`cdk.json`）と秘密情報を組み合わせたものです。
 
@@ -12,7 +14,7 @@
 |---|---|
 | 画面の配信 | Amazon CloudFront + Amazon S3（非公開バケット、CloudFront 経由でのみ読み取り） |
 | 攻撃の遮断 | AWS WAF（AWS マネージドルール、IP ごとのレート制限） |
-| API | Amazon API Gateway（HTTP API）+ AWS Lambda（Node.js） |
+| API | Amazon API Gateway（HTTP API）+ AWS Lambda（Node.js 22） |
 | データ | Amazon DynamoDB（保存時暗号化、ポイントインタイムリカバリ、削除保護） |
 | ログインの管理 | Amazon Cognito（Discord で本人確認した後にセッションを発行） |
 | 秘密情報 | AWS Systems Manager Parameter Store（SecureString） |
@@ -25,6 +27,7 @@
 - `lib/waf-stack.ts` … WAF の定義
 - `lambda/api/index.mjs` … API の処理（マッチング、対戦結果、プロフィールなど）
 - `lambda/privileged/index.mjs` … アカウント作成・セッション発行だけを行う、インターネットから到達できない関数
+- `lambda/presignup/index.mjs` … サーバー側で作るアカウント以外の新規登録をすべて拒否する関数
 - `web/` … 画面（HTML / JavaScript / CSS）
 
 ## セキュリティ上の設計の要点
@@ -34,10 +37,45 @@
 - **権限の分離**：アカウント作成やセッション発行に必要な Cognito の管理権限は、匿名のアクセスを受ける API 関数には持たせず、API 関数からしか呼べない別の関数に分けています。その関数も、決められた操作しか受け付けません。
 - **入口の制限**：API は CloudFront を通したアクセスだけを受け付けます（API Gateway に直接アクセスしても拒否されます）。CloudFront には WAF を付けています。
 - **ブラウザ側の防御**：コンテンツセキュリティポリシーで自サイト以外のスクリプトの読み込みを禁止し、HSTS、フレームへの埋め込み禁止などのヘッダを付けています。広告やアクセス解析は使っていません。
+- **外部のプログラムに頼らない**：画面は外部のライブラリや CDN を読み込みません。Lambda 関数は Node.js の標準機能と、実行環境に含まれる AWS SDK だけを使い、npm パッケージを同梱していません。
 - **データ**：保存データは暗号化しています。画像の置き場所は非公開で、プロフィール画像はサーバー側でも位置情報などのメタデータを取り除いてから公開します。
 - **公開範囲**：DiscordのユーザーID・ユーザー名などは公開 API に含めません。対戦ルームは誰でも閲覧できますが、ゲーム内の部屋 ID は対戦する 2 人にしか返しません。
 
-利用者向けの説明は、サイトの「安全への取り組み」ページにあります。
+利用者向けの説明は、サイトの「[安全への取り組み](https://smashballrun.net/#/security)」ページにあります。
+
+## 公開しているコードと本番環境の対応
+
+サイトが配信している `app.js`・`fighters.js`・`style.css` は、このリポジトリの `web/` にあるファイルとバイト単位で同じです（`index.html` だけは、デプロイ時にサイト名や説明文を書き込みます）。次のようにして確かめられます。
+
+```sh
+for f in app.js fighters.js style.css; do
+  curl -s "https://smashballrun.net/$f" | sha256sum
+  sha256sum "web/$f"
+done
+```
+
+インフラの定義は、AWS の認証情報がなくても CloudFormation テンプレートとして出力して確認できます。
+
+```sh
+npm ci
+cp cdk.example.json cdk.json
+npx cdk synth
+```
+
+変更のたびに、GitHub Actions で型チェック・構文チェック・テンプレートの出力を自動で行っています。
+
+## 第三者による診断
+
+| 診断サービス | 結果 |
+|---|---|
+| [Qualys SSL Labs](https://www.ssllabs.com/ssltest/analyze.html?d=smashballrun.net)（通信の暗号化） | A+ |
+| [Mozilla HTTP Observatory](https://developer.mozilla.org/en-US/observatory/analyze?host=smashballrun.net)（セキュリティ設定） | A+ |
+
+2026年10月30日に確認しました。上のリンクから、どなたでもその場で再診断できます。
+
+## 脆弱性の報告
+
+[SECURITY.md](SECURITY.md) をご覧ください。
 
 ## このリポジトリに含まれないもの
 

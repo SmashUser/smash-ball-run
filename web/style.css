@@ -232,6 +232,10 @@ table.tbl { width: 100%; border-collapse: collapse; }
 .acc-links a + a::before, .acc-links a + button::before { content: "|"; color: #d4a35a; margin: 0 8px; font-weight: 400; }
 .acc-links button { background: none; border: 0; padding: 0; font: inherit; color: var(--link); cursor: pointer; }
 .acc-links .live { display: block; font-size: .9rem; margin-top: 6px; text-align: right; }
+.acc-links a, .acc-links button { white-space: nowrap; }
+/* Admins have a third link (管理); a smaller size keeps the three on one line */
+.acc-links.admin { font-size: 1rem; }
+.acc-links.admin a + a::before, .acc-links.admin a + button::before { margin: 0 6px; }
 
 /* Alerts */
 .alert { border: 1px solid; border-radius: 4px; padding: 14px 18px; margin-bottom: 18px; }
@@ -249,6 +253,9 @@ table.tbl { width: 100%; border-collapse: collapse; }
 .ptable td { text-align: center; padding: 10px 6px; border-bottom: 1px solid var(--line); }
 .ptable tr:last-child td { border-bottom: 0; }
 .ptable td:last-child { font-weight: 700; }
+/* Both player boxes end at the same height even when one has taller reject-stage images */
+.pbox { display: flex; flex-direction: column; }
+.pbox > .ptable { flex: 1; }
 .section-label { text-align: center; font-weight: 700; margin: 14px 0 4px; }
 .stage-table { border: 1px solid var(--border); }
 .stage-table .stage-head { background: #eee; text-align: center; font-weight: 700; padding: 8px; border-bottom: 1px solid var(--border); }
@@ -297,7 +304,7 @@ table.tbl { width: 100%; border-collapse: collapse; }
 .doc-sec { margin-bottom: 22px; }
 .doc-sec .box-head { font-size: 1.35rem; }
 .doc-sec .doc-body { padding: 12px 0 0; }
-.doc-body ul.dots { list-style: none; padding: 0; margin: 0; }
+.doc-body ul.dots { list-style: none; padding: 0; margin: 0 0 .8em; }
 .doc-body ul.dots li::before { content: "・"; }
 .strong-red { color: #e00; font-weight: 700; }
 
@@ -336,7 +343,6 @@ table.tbl { width: 100%; border-collapse: collapse; }
   .box-head { margin-left: -12px; margin-right: -12px; }
   .box-body, .titem, .ditem, .rk-row, .hist-row { margin-left: -12px; margin-right: -12px; border-left: 0; border-right: 0; }
   .box-body.flush { margin-top: 0; }
-  .mrow { margin-left: -12px; margin-right: -12px; }
 
   /* Match room keeps the 2-column player layout */
   .players { grid-template-columns: 1fr 1fr; gap: 6px; margin-left: -12px; margin-right: -12px; }
@@ -367,6 +373,7 @@ table.tbl { width: 100%; border-collapse: collapse; }
   .header-mid { order: 3; flex-basis: 100%; padding-top: 0; }
   .sub-nav { padding-bottom: 8px; margin-bottom: 8px; font-size: .85rem; }
   .account { margin-left: auto; width: 220px; }
+  .acc-links.admin { font-size: .9rem; }
   .cols, .cols.side-right { grid-template-columns: 1fr; }
   .cols.side-right .col-side { order: 2; }
   .tabs { grid-template-columns: repeat(3, 1fr); }
@@ -414,10 +421,13 @@ table.tbl { width: 100%; border-collapse: collapse; }
 .cmt-body { border: 1px solid var(--border); padding: 8px 10px; margin-top: 4px; white-space: pre-wrap; word-break: break-word; }
 
 /* Stage reject matrix */
-.smx { width: 100%; border-collapse: collapse; table-layout: fixed; }
-.smx th, .smx td { border: 1px solid #ccc; text-align: center; padding: 0; height: 34px; }
+/* Separate borders (right/bottom per cell) so the sticky stage row carries its own lines */
+.smx { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; border-top: 1px solid #ccc; border-left: 1px solid #ccc; }
+.smx th, .smx td { border: 0; border-right: 1px solid #ccc; border-bottom: 1px solid #ccc; text-align: center; padding: 0; height: 34px; }
 .smx th { font-size: .62rem; font-weight: 400; line-height: 1.1; padding: 2px 0; }
 .smx th img { display: block; width: 100%; height: 22px; object-fit: cover; }
+/* The stage row stays in view while scrolling down the fighter list */
+.smx thead th { position: sticky; top: var(--smx-top, 0px); z-index: 3; background: #fff; }
 .smx td.f { width: 56px; padding: 2px; }
 .smx td.f .fthumb { width: 48px; height: 26px; }
 .smx td.f small { display: block; font-size: .6rem; line-height: 1.1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
@@ -425,6 +435,15 @@ table.tbl { width: 100%; border-collapse: collapse; }
 .smx td.c.x { background: #fff35a; }
 .smx td.c.x::after { content: "✕"; font-weight: 700; color: #333; }
 .smx tr.def td.f { background: #e8f1ff; font-size: .7rem; font-weight: 700; }
+/* PC: the grid has room, so stages and fighters are shown larger and names in full */
+@media (min-width: 769px) {
+  .smx thead th:first-child { width: 110px !important; }
+  .smx th { font-size: .78rem; }
+  .smx th img { height: 46px; }
+  .smx td.f .fthumb { width: 64px; height: 34px; }
+  .smx td.f small { font-size: .72rem; }
+  .smx tr.def td.f { font-size: .8rem; }
+}
 
 /* Modal */
 .modal-back { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 80; display: flex; align-items: flex-start; justify-content: center; padding: 20px 12px; overflow-y: auto; }
@@ -487,6 +506,10 @@ table.tbl { width: 100%; border-collapse: collapse; }
 .adm-season { margin-top: 14px; padding-top: 12px; border-top: 1px solid #e3e3e3; }
 .adm-season .row { gap: 6px; flex-wrap: nowrap; }
 .adm-season input { width: 6em; }
+/* The name and the end date need their full text visible */
+.adm-season #season-name { width: 100%; margin-bottom: 8px; }
+.adm-season #season-end-at { flex: 1; width: auto; min-width: 0; }
+.adm-season #season-end-save { flex: none; width: auto; padding: 0 16px; }
 .result-table td:last-child { text-align: center; white-space: nowrap; width: 90px; }
 
 /* ===== Mobile scale (matches the original phone layout at ~400px) ===== */
@@ -861,6 +884,12 @@ a { color: #303ca8; }
 .wait-spin .w-ring { -webkit-mask: radial-gradient(circle, transparent 69%, #000 70%); mask: radial-gradient(circle, transparent 69%, #000 70%); animation: wait-rot 1.1s linear infinite; }
 
 .wait-box p { font-size: 10.5px; letter-spacing: -.01em; }
+/* PC: the half-width column has room for a readable message and a larger spinner */
+@media (min-width: 769px) {
+  .wait-box { padding: 28px 2px 20px; }
+  .wait-box p { font-size: .95rem; letter-spacing: 0; margin-bottom: 18px; }
+  .wait-spin { width: 110px; height: 110px; margin-bottom: 22px; }
+}
 
 /* Spinner fix: mask radius relative to the image edge (closest-side), not the corners */
 .wait-spin .w-core { -webkit-mask: radial-gradient(circle closest-side, #000 70%, transparent 71%); mask: radial-gradient(circle closest-side, #000 70%, transparent 71%); }

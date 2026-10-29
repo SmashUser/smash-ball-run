@@ -5,6 +5,7 @@
     "exclude": ["README.md", "cdk*.json", "**/*.d.ts", "node_modules", "cdk.out"]
   },
   "context": {
+    "@aws-cdk/core:defaultCrossStackReferences": "strong",
     "discordEmailDomain": "@users.example.invalid",
     "alertEmail": "alerts@example.com",
     "public": {

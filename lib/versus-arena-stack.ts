@@ -98,6 +98,8 @@ export function renderIndex(site: SiteConfig, siteUrl: string): string {
   swap('<meta property="og:url" content="https://example.com/">', `<meta property="og:url" content="${siteUrl}">`);
   if (site.brand) {
     swap(/<meta property="og:image" content="[^"]*">/, `<meta property="og:image" content="${siteUrl}${site.brand.ogImage}">`);
+    // The brand preview image is wide (1200x630), so link cards show it large
+    swap('<meta name="twitter:card" content="summary">', '<meta name="twitter:card" content="summary_large_image">');
     const ic = site.brand.icons;
     swap('<link rel="icon" href="assets/logo.png">', ic
       ? `<link rel="icon" type="image/png" sizes="32x32" href="${ic.png32}">\n  <link rel="icon" type="image/png" sizes="192x192" href="${ic.png192}">\n  <link rel="apple-touch-icon" href="${ic.appleTouch}">`
@@ -278,8 +280,11 @@ export class VersusArenaStack extends cdk.Stack {
       queryStringBehavior: cloudfront.OriginRequestQueryStringBehavior.all(),
     });
 
-    // Custom domain: every other host name (www., *.cloudfront.net) is redirected to the apex
+    // Custom domain: every other host name (www., *.cloudfront.net) is redirected to the apex.
+    // On the apex, a page path typed without the "#" (e.g. /rules) opens that page instead of the
+    // bucket's access error, and /favicon.ico is answered with the site's icon.
     const custom = props.domainName && props.certificateArn;
+    const favicon = props.site.brand?.icons?.png32;
     const canonicalRedirect = custom
       ? [{
         eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
@@ -288,7 +293,13 @@ export class VersusArenaStack extends cdk.Stack {
           code: cloudfront.FunctionCode.fromInline(`
 function handler(event) {
   var req = event.request;
-  if (req.headers.host && req.headers.host.value === '${props.domainName}') return req;
+  if (req.headers.host && req.headers.host.value === '${props.domainName}') {
+    if (req.uri !== '/' && req.uri.indexOf('.') === -1 && req.uri.indexOf('/api/') !== 0) {
+      return { statusCode: 302, statusDescription: 'Found', headers: { location: { value: 'https://${props.domainName}/#' + req.uri } } };
+    }${favicon ? `
+    if (req.uri === '/favicon.ico') req.uri = '/${favicon}';` : ''}
+    return req;
+  }
   var qs = Object.keys(req.querystring).map(function (k) { return k + '=' + req.querystring[k].value; }).join('&');
   return { statusCode: 301, statusDescription: 'Moved Permanently',
     headers: { location: { value: 'https://${props.domainName}' + req.uri + (qs ? '?' + qs : '') } } };
@@ -299,11 +310,12 @@ function handler(event) {
 
     const distribution = new cloudfront.Distribution(this, 'Distribution', {
       defaultRootObject: 'index.html',
-      minimumProtocolVersion: cloudfront.SecurityPolicyProtocol.TLS_V1_2_2021,
       webAclId: props.webAclArn,
       ...(custom ? {
         domainNames: [props.domainName!, `www.${props.domainName}`],
         certificate: acm.Certificate.fromCertificateArn(this, 'SiteCert', props.certificateArn!),
+        // Only applies with a custom certificate (the default *.cloudfront.net one is fixed)
+        minimumProtocolVersion: cloudfront.SecurityPolicyProtocol.TLS_V1_2_2021,
       } : {}),
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessControl(siteBucket),
@@ -467,7 +479,7 @@ function handler(event) {
         removalPolicy: cdk.RemovalPolicy.DESTROY,
       }),
     });
-    // Only the operations the function actually performs — no Scan, no BatchWriteItem
+    // Only the operations the function actually performs (no Scan, no BatchWriteItem)
     apiFn.addToRolePolicy(new iam.PolicyStatement({
       actions: ['dynamodb:GetItem', 'dynamodb:Query', 'dynamodb:PutItem', 'dynamodb:UpdateItem',
         'dynamodb:DeleteItem', 'dynamodb:TransactWriteItems', 'dynamodb:ConditionCheckItem'],
@@ -514,6 +526,8 @@ function handler(event) {
           `Policy: ${siteUrl}#/terms`,
           '',
         ].join('\n')),
+        // Crawlers may read everything, except on a site kept out of search engines
+        s3deploy.Source.data('robots.txt', `User-agent: *\n${props.site.noindex ? 'Disallow: /' : 'Allow: /'}\n`),
         s3deploy.Source.jsonData('config.json', {
           discordEnabled: Boolean(discordClientId),
           // The sign-in page says whether Discord server membership is checked

@@ -1,4 +1,4 @@
-/* Versus Arena — vanilla JS single-page app (hash routing). */
+/* Versus Arena: vanilla JS single-page app (hash routing). */
 (() => {
   'use strict';
 
@@ -103,7 +103,7 @@
   async function api(path, { method = 'GET', body } = {}) {
     const headers = {};
     // Signed in: double-submit token. Signed out (login/sign-up forms): any non-empty
-    // custom header — the server additionally requires our exact Origin.
+    // custom header; the server additionally requires our exact Origin.
     if (method !== 'GET') headers['x-csrf-token'] = getCookie('__Host-csrf') || 'anon';
     if (body !== undefined) headers['content-type'] = 'application/json';
     const res = await fetch(path, { method, headers, credentials: 'same-origin', body: body === undefined ? undefined : JSON.stringify(body) });
@@ -160,7 +160,7 @@
     const el = $('#account');
     if (me) {
       el.innerHTML = `
-        <div class="acc-links">${me.isAdmin ? '<a href="#/admin">管理</a>' : ''}<a href="#/mypage">マイページ</a><button id="logout">ログアウト</button></div>`;
+        <div class="acc-links${me.isAdmin ? ' admin' : ''}">${me.isAdmin ? '<a href="#/admin">管理</a>' : ''}<a href="#/mypage">マイページ</a><button id="logout">ログアウト</button></div>`;
       $('#logout').addEventListener('click', () => auth.logout());
     } else {
       el.innerHTML = loginButtons();
@@ -192,9 +192,11 @@
   // A player's character = the one opponents voted for most; "?" until someone has voted
   const unknownThumb = (cls, title) => `<span class="fthumb ${cls}" title="${title}"><img src="assets/fighter-unknown.jpg" alt="${title}" loading="lazy"></span>`;
   const mainThumb = (f, cls = '') => fthumb(f, cls) || unknownThumb(cls, 'キャラ投票なし');
-  // Profile image if the user uploaded one (falls back to the silhouette)
+  // Profile image if the user uploaded one (falls back to the silhouette). A user whose image
+  // failed to load is remembered, so list refreshes don't keep asking for a file that isn't there.
+  const noAvatar = new Set();
   const avatar = (cls = '', uid = '') =>
-    `<span class="avatar ${cls}">${uid ? `<img src="avatars/${esc(uid)}.jpg" alt="" loading="lazy" data-fb>` : ''}</span>`;
+    `<span class="avatar ${cls}">${uid && !noAvatar.has(uid) ? `<img src="avatars/${esc(uid)}.jpg" alt="" loading="lazy" data-fb data-uid="${esc(uid)}">` : ''}</span>`;
   // Shown beside the site owner's name so players know who runs the site
   const ADMIN_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2.5 4.5 5.6v6.1c0 4.6 3.2 8.4 7.5 9.8 4.3-1.4 7.5-5.2 7.5-9.8V5.6L12 2.5z"/><path class="tick" d="m8.6 12.2 2.3 2.3 4.5-4.6"/></svg>';
   const adminBadge = (isAdmin) => (isAdmin ? `<span class="adm-badge" title="管理者">${ADMIN_SVG}<span>管理者</span></span>` : '');
@@ -222,8 +224,8 @@
     try { return await fn(); } catch (e) { toast(e.message); } finally { if (btn) btn.disabled = false; }
   }
 
-  // Page-scoped timers are cleared on navigation. They also pause while the tab is hidden —
-  // a phone in a pocket should not keep polling — and catch up the moment it is looked at again.
+  // Page-scoped timers are cleared on navigation. They also pause while the tab is hidden (a
+  // phone in a pocket should not keep polling) and catch up the moment it is looked at again.
   let timers = [];
   let pollers = [];
   const every = (ms, fn) => {
@@ -908,9 +910,9 @@
     app.innerHTML = layout({
       crumb: '検索結果',
       title: `「${query}」の検索結果`,
-      sideRight: true,
-      main: closed('diaries') ? boxList('プレイヤー', `<div id="s-players">${spinner}</div>`) : boxList('プレイヤー日記', `<div id="s-diaries">${spinner}</div>`),
-      side: closed('diaries') ? '' : boxList('プレイヤー', `<div id="s-players">${spinner}</div>`),
+      ...(closed('diaries')
+        ? { single: boxList('プレイヤー', `<div id="s-players">${spinner}</div>`) }
+        : { sideRight: true, main: boxList('プレイヤー日記', `<div id="s-diaries">${spinner}</div>`), side: boxList('プレイヤー', `<div id="s-players">${spinner}</div>`) }),
     });
     const has = (...xs) => xs.some((x) => String(x || '').toLowerCase().includes(query.toLowerCase()));
     const [d, r] = await Promise.allSettled([closed('diaries') ? null : api('/api/diaries'), api(`/api/users?q=${encodeURIComponent(query)}`)]);
@@ -1767,10 +1769,10 @@
   function pageAvatar() {
     if (!requireLogin('プロフィール画像設定')) return;
     app.innerHTML = layout({
-      crumb: 'プロフィール画像設定',
+      crumb: [crumbLink('#/mypage', 'マイページ'), 'プロフィール画像設定'],
       title: 'プロフィール画像設定',
       single: boxList('画像の設定', `<p>プロフィール画像を設定できます。画像は正方形に切り抜かれ、ランキングや対戦一覧に表示されます。</p>
-        <div class="row">${avatar('', me.userId).replace('class="avatar ', 'class="avatar " id="av-preview" data-style="width:100px;height:100px"')}<input type="file" id="av-file" accept="image/*" data-style="max-width:240px"></div>
+        <div class="row">${avatar('', me.userId).replace('class="avatar ', 'class="avatar " id="av-preview" data-style="width:100px;height:100px"')}<input type="file" id="av-file" accept="image/*" data-style="flex:1;min-width:0;max-width:360px"></div>
         <p data-style="margin-top:12px"><button class="btn btn-green" id="av-save" disabled>この画像に変更する</button></p>`),
     });
     let dataUrl = null;
@@ -1793,6 +1795,7 @@
     });
     $('#av-save').addEventListener('click', (ev) => withBusy(ev.target, async () => {
       await api('/api/me/avatar', { method: 'PUT', body: { image: dataUrl } });
+      noAvatar.delete(me.userId);
       toast('プロフィール画像を変更しました（反映まで最大1分ほどかかります）');
     }));
   }
@@ -1824,6 +1827,9 @@
       else cur.push(s);
       td.classList.toggle('x', cur.includes(s));
     });
+    // The stage row stays at the top while scrolling down the fighters (below the phone's fixed header bar)
+    const head = document.querySelector('.site-header');
+    if (head && getComputedStyle(head).position === 'sticky') app.querySelector('.smx').style.setProperty('--smx-top', `${head.offsetHeight}px`);
     app.querySelectorAll('[data-reset]').forEach((b) => b.addEventListener('click', () => {
       Object.keys(state).forEach((k) => { state[k] = []; });
       app.querySelectorAll('.smx td.c.x').forEach((td) => td.classList.remove('x'));
@@ -1842,7 +1848,7 @@
     let { memos } = await api('/api/me/memos');
     let cur = null;
     app.innerHTML = layout({
-      crumb: 'キャラ対策メモ設定',
+      crumb: [crumbLink('#/mypage', 'マイページ'), 'キャラ対策メモ設定'],
       title: 'キャラ対策メモ設定',
       single: `<p>キャラクターごとのメモを3000文字まで保存できます。保存したメモは対戦ルームから呼び出せます。</p>
         <button class="btn btn-gray btn-block" id="pick" data-style="background:#e6e6e6;color:#333;border-color:#aaa">＋ 入力するキャラクターを選択</button>
@@ -1996,7 +2002,7 @@
       crumb: 'サイト内検索',
       title: 'サイト内検索',
       single: boxList('サイト内検索', `<form id="sform"><input name="q" placeholder="キーワードを入力" required><button class="btn btn-green btn-block" data-style="margin-top:10px">検索</button></form>
-        <p data-style="margin-top:10px">キーワードから、大会・プレイヤー日記・プレイヤーを検索できます。</p>`),
+        <p data-style="margin-top:10px">キーワードから、${closed('diaries') ? '' : 'プレイヤー日記・'}プレイヤーを検索できます。</p>`),
     });
     $('#sform').addEventListener('submit', (ev) => {
       ev.preventDefault();
@@ -2155,7 +2161,7 @@
     const qs = new URLSearchParams({ return: ret });
     const mobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     if (!mobile) { location.assign(`/api/auth/discord/login?${qs}`); return; }
-    // Phones: open the Discord app. Never auto-fall back to the browser — running both
+    // Phones: open the Discord app. Never auto-fall back to the browser: running both
     // flows at once signed users in as whichever account (app vs. browser) answered last.
     // The browser path is offered only as an explicit link.
     api(`/api/auth/discord/start?${qs}`).then(({ appUrl, webUrl }) => {
@@ -2235,6 +2241,10 @@
     const PER = 20;
     let page = 0;
     const base = `#/users/${esc(u.userId)}`;
+    const histBox = boxList('レーティング対戦履歴', '<div id="hist"></div><div class="pager" id="hpager"></div>');
+    const graphBox = boxList('レーティンググラフ', ratingGraph(data.history));
+    // On PC the graph goes above the 20-row history so it is visible without a long scroll
+    const graphFirst = matchMedia('(min-width: 769px)').matches;
     app.innerHTML = layout({
       crumb: own ? 'マイページ' : esc(u.name),
       title: own ? 'マイページ' : u.name,
@@ -2260,8 +2270,7 @@
         </ul></div>` : ''}
         ${box('レーティング対戦', ratingSummary(u, data.history), 'rate-box')}`,
       main: `${box('プロフィール', u.bio ? `<div class="prose">${esc(u.bio)}</div>` : '<span class="muted">プロフィールは未設定です</span>')}
-        ${boxList('レーティング対戦履歴', '<div id="hist"></div><div class="pager" id="hpager"></div>')}
-        ${boxList('レーティンググラフ', ratingGraph(data.history))}`,
+        ${graphFirst ? graphBox + histBox : histBox + graphBox}`,
     });
     function renderHist() {
       const items = data.history.slice(page * PER, page * PER + PER);
@@ -2284,7 +2293,10 @@
   // Achievements = top-4 tournament finishes
   const achievementsOf = (tours) => tours.filter((t) => ['優勝', '準優勝', 'ベスト4'].includes(t.result));
   const profileData = async (uid) => {
-    const [data, t] = await Promise.all([api(`/api/users/${uid}`), api(`/api/users/${uid}/tournaments`).catch(() => ({ tournaments: [] }))]);
+    const [data, t] = await Promise.all([
+      api(`/api/users/${uid}`),
+      closed('tournaments') ? { tournaments: [] } : api(`/api/users/${uid}/tournaments`).catch(() => ({ tournaments: [] })),
+    ]);
     return { ...data, tournaments: t.tournaments };
   };
 
@@ -2339,7 +2351,7 @@
     app.innerHTML = layout({
       crumb: [crumbLink('#/admin', '管理ページ'), '対戦結果の修正'],
       title: '対戦結果の修正',
-      single: `<p class="small">直近100件のレーティング対戦です。決着済みの対戦を修正すると、反映済みのレート・勝敗数・ポイント・対戦履歴をいったん取り消してから、新しい結果で付け直します（最高レートは戻りません）。</p>
+      single: `<p class="small">直近100件のレーティング対戦です。決着済みの対戦を修正すると、反映済みのレート・勝敗数・${closed('points') ? '' : 'ポイント・'}対戦履歴をいったん取り消してから、新しい結果で付け直します（最高レートは戻りません）。</p>
         <input id="am-filter" placeholder="ルーム番号・プレイヤー名で絞り込み"><div id="am-list" data-style="margin-top:10px"></div>`,
     });
     render();
@@ -2453,7 +2465,7 @@
   }
 
   function pageClosed() {
-    app.innerHTML = layout({ title: 'この機能は現在準備中です', single: '<p>公開までしばらくお待ちください。</p><p><a href="#/">トップへ戻る</a></p>' });
+    app.innerHTML = layout({ crumb: '準備中', title: 'この機能は現在準備中です', single: '<p>公開までしばらくお待ちください。</p><p><a href="#/">トップへ戻る</a></p>' });
   }
 
   // ---------- Router ----------
@@ -2503,7 +2515,7 @@
     [/^\/news\/([\w-]+)$/, pageNews],
     [/^\/updates$/, pageUpdates],
     [/^\/(about|terms|privacy|rules|faq|links)$/, pageDoc],
-    [/^\/security$/, () => (hasDoc('security') ? pageDoc('security') : (app.innerHTML = layout({ title: 'ページが見つかりません', single: '<p><a href="#/">トップへ戻る</a></p>' })))],
+    [/^\/security$/, () => (hasDoc('security') ? pageDoc('security') : pageNotFound())],
   ];
 
   // Each navigation gets a number; a slower, superseded render must not show its errors
@@ -2524,7 +2536,10 @@
       try { await fn(...m.slice(1)); } catch (e) { console.error(e); if (gen === routeGen) app.innerHTML = errorBox(e); }
       return;
     }
-    app.innerHTML = layout({ title: 'ページが見つかりません', single: '<p><a href="#/">トップへ戻る</a></p>' });
+    pageNotFound();
+  }
+  function pageNotFound() {
+    app.innerHTML = layout({ crumb: 'ページが見つかりません', title: 'ページが見つかりません', single: '<p><a href="#/">トップへ戻る</a></p>' });
   }
 
   // Templates write data-style="…" instead of style="…" (CSP has no 'unsafe-inline' for styles);
@@ -2550,7 +2565,10 @@
       span.className = 'logo-text';
       span.textContent = siteName();
       t.replaceWith(span);
-    } else if (t.hasAttribute('data-fb')) t.remove();
+    } else if (t.hasAttribute('data-fb')) {
+      if (t.dataset.uid) noAvatar.add(t.dataset.uid);
+      t.remove();
+    }
   }, true);
 
   async function boot() {

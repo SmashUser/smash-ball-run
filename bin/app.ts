@@ -30,8 +30,6 @@ interface SiteDef {
   site: SiteConfig;
 }
 
-const discordClientId: string = ctx('discordClientId') ?? '';
-const discordSecretParam = '/versus-arena/discord-client-secret';
 // Part of every existing account's sign-in name: set once in cdk.json, never changed afterwards
 const discordEmailDomain: string = ctx('discordEmailDomain') ?? '';
 const pub = ctx('public') ?? {};
@@ -86,11 +84,10 @@ function sbrSite(): SiteConfig {
     defaultSiteName: pub.title ?? 'Smash・Ball・Run',
     // A rated-matches-only revival: everything else stays 準備中 for now
     closed: ['diaries', 'free', 'links', 'medals', 'points', 'friendCode', 'profileFighter'],
-    // Its own Discord application once "public.discordClientId" is set (the consent screen then
-    // shows this site's name); until then it shares the members site's application
-    discordClientId: pub.discordClientId || discordClientId,
+    // The site's own Discord application (its name is what the consent screen shows)
+    discordClientId: pub.discordClientId ?? '',
     discordGuildId: pub.discordGuildId ?? '',
-    discordSecretParam: pub.discordClientId ? '/smashballrun/discord-client-secret' : discordSecretParam,
+    discordSecretParam: '/smashballrun/discord-client-secret',
     cookieKeyParam: '/smashballrun/cookie-signing-key',
     discordEmailDomain,
     adminSub: pub.adminSub ?? '',

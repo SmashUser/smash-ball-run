@@ -1,4 +1,4 @@
-// Versus Arena API — single Lambda behind an HTTP API.
+// Versus Arena API: a single Lambda function behind an HTTP API.
 // Uses only the AWS SDK v3 bundled with the Node.js Lambda runtime (no build step).
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import {
@@ -19,6 +19,7 @@ import {
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
+import { randomUUID, randomBytes, randomInt, createHash, createHmac, createPublicKey, timingSafeEqual, verify as cryptoVerify } from 'node:crypto';
 
 // Admin-level Cognito work runs in a separate function with its own role; this one cannot
 // create users, set passwords or mint sessions by itself.
@@ -39,7 +40,6 @@ async function priv(op, args = {}) {
   }
   return out.result;
 }
-import { randomUUID, randomBytes, randomInt, createHash, createHmac, createPublicKey, timingSafeEqual, verify as cryptoVerify } from 'node:crypto';
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
   marshallOptions: { removeUndefinedValues: true },
@@ -48,8 +48,6 @@ const TABLE = process.env.TABLE_NAME;
 
 const INITIAL_RATING = 1500;
 const ELO_K = 32;
-const QUEUE_STALE_MS = 20_000; // a queued player must poll within this window
-const BASE_RATING_WINDOW = 150; // widened by 10 per second waited
 const FREE_ROOM_OPEN_MS = 3 * 3600_000; // recruiting window
 const FREE_ROOM_TTL_SEC = 48 * 3600; // kept visible in the list as finished
 const MESSAGE_TTL_SEC = 7 * 86400;
@@ -786,7 +784,7 @@ async function ranking(ctx) {
 // "Find an opponent": join a compatible open room whose host has set a room ID;
 // otherwise become the host of a new waiting room. The host keeps the room page
 // open (its polling refreshes OPEN.lastSeen) and sets the in-game room ID.
-const ROOM_PASSWORD = '1122';
+const ROOM_PASSWORD = '1122'; // the in-game arena password: fixed by the rules and shown to both players, not a secret
 // A waiting room stays joinable this long after the host's page last polled
 // (phones stop polling while the screen is locked, e.g. while the host waits at the Switch)
 const OPEN_STALE_MS = 5 * 60_000;
@@ -1772,12 +1770,6 @@ async function createDiary(ctx) {
   return strip(d);
 }
 
-async function getDiary(ctx, uid, did) {
-  const d = await get(`USER#${uid}`, `DIARY#${did}`);
-  if (!d) throw new HttpError(404, '日記が見つかりません');
-  return strip(d);
-}
-
 async function deleteDiary(ctx, uid, did) {
   if (requireUser(ctx) !== uid) throw new HttpError(403, '自分の日記のみ削除できます');
   await del(`USER#${uid}`, `DIARY#${did}`);
@@ -2166,7 +2158,6 @@ async function userTournaments(ctx, uid) {
 }
 
 // ---------- Admin: user management ----------
-const USER_POOL_ID = process.env.USER_POOL_ID;
 async function adminListUsers(ctx) {
   requireAdmin(ctx);
   const users = await priv('listUsers');
@@ -2465,7 +2456,7 @@ const discordEmail = (discordId) => {
   return `discord-${discordId}${DISCORD_EMAIL_DOMAIN}`;
 };
 function isDiscordEmail(v) { return Boolean(DISCORD_EMAIL_DOMAIN) && String(v ?? '').toLowerCase().endsWith(DISCORD_EMAIL_DOMAIN); }
-// ---------- Discord sign-in (OAuth2, "identify" scope only — no e-mail) ----------
+// ---------- Discord sign-in (OAuth2, "identify" scope only, no e-mail) ----------
 // Discord is not OIDC, so Cognito can't federate it directly. After verifying the user
 // with Discord we map the Discord ID to a password-less Cognito user and mint Cognito
 // tokens server-side (a throw-away random password set + ADMIN_USER_PASSWORD_AUTH,
@@ -2756,6 +2747,3 @@ export const handler = async (event) => {
     return respond(500, { message: 'サーバーエラーが発生しました' });
   }
 };
-
-// Exported for unit tests
-export const _internal = { buildBracket, advance };

@@ -8,7 +8,7 @@ cdk.context.json
 web/config.json
 cdk-outputs.json
 
-# secrets — never commit
+# secrets: never commit
 .origin-secret*
 *.pem
 *.key
