@@ -971,7 +971,7 @@
       ['Cookieについて', '<p>ログイン状態を保つため、Cookieを使用します。ログイン用のCookieはJavaScriptから読み取れない設定にし、他サイトから送信されないよう制限しています。広告やアクセス解析を目的としたCookieは使用していません。</p>'],
       ['第三者への提供', '<p>法令に基づく場合を除き、利用者の情報を第三者に提供することはありません。サービスの運営には Amazon Web Services（AWS）を利用しており、情報はAWSのサーバーに保存されます。</p>'],
       ['安全管理', '<p>通信はすべて暗号化（HTTPS）しています。不正アクセスへの対策として、アクセス制限や攻撃の検知を行っています。</p>'],
-      ['アカウントの削除', '<p>アカウントの削除をご希望の場合は、<a href="#/contact">お問い合わせページ</a>からご連絡ください。削除すると、プロフィール・日記などの情報は削除されます。対戦相手の記録の整合性を保つため、過去の対戦履歴は残ります。</p><p>Discordの設定画面で当サイトとの連携を解除することもできます（解除しても当サイトのアカウントは削除されません）。</p>'],
+      ['アカウントの削除', '<p>アカウントの削除をご希望の場合は、<a href="#/contact">お問い合わせページ</a>からご連絡ください。削除すると、プロフィール・日記などの情報は削除されます。対戦相手の記録の整合性を保つため、過去の対戦履歴、対戦ルームのコメント、他のプレイヤーに書いた紹介文、お問い合わせの内容は残ります。</p><p>Discordの設定画面で当サイトとの連携を解除することもできます（解除しても当サイトのアカウントは削除されません）。</p>'],
       ['改定', '<p>本ポリシーは必要に応じて改定することがあります。改定後の内容は、本ページに掲示した時点で効力を持ちます。</p>'],
     ]],
     rules: ['対戦ルール', '<p>レーティング対戦のルールです。対戦前に必ずお読みください。ルールを守らないプレイヤーは規制の対象になります。</p>', [
@@ -1082,7 +1082,7 @@
       ['第三者への提供', '<p>法令に基づく場合を除き、利用者の情報を第三者に提供することはありません。</p><p>サービスの運営には Amazon Web Services（AWS）を利用しており、情報はAWSの東京リージョンのサーバーに保存されます。ログインにはDiscordを利用します。</p>'],
       ['保存期間', '<p>アカウントの情報は、アカウントを削除するまで保存します。アクセスの記録は2週間、エラーの記録は1か月、バックアップは最大35日で自動的に消えます。</p>'],
       ['安全管理', '<p>通信の暗号化、保存データの暗号化、不正アクセスへの対策などを行っています。具体的な内容は<a href="#/security">安全への取り組み</a>をご覧ください。</p>'],
-      ['アカウントの削除', '<p>アカウントの削除をご希望の場合は、<a href="#/contact">お問い合わせページ</a>からご連絡ください。削除すると、プロフィール・プロフィール画像・設定などの情報は削除されます。対戦相手の記録の整合性を保つため、過去の対戦履歴は残ります。バックアップに残ったデータも最大35日で消えます。</p><p>Discordの「ユーザー設定」→「承認済みアプリ」から、当サイトとの連携を解除することもできます（解除しても当サイトのアカウントは削除されません）。</p>'],
+      ['アカウントの削除', '<p>アカウントの削除をご希望の場合は、<a href="#/contact">お問い合わせページ</a>からご連絡ください。削除すると、プロフィール・プロフィール画像・設定などの情報は削除され、Discordアカウントとのつながりも解除されます。対戦相手の記録の整合性を保つため、過去の対戦履歴、対戦ルームのコメント、他のプレイヤーに書いた紹介文、お問い合わせの内容は残ります。バックアップに残ったデータも最大35日で消えます。</p><p>Discordの「ユーザー設定」→「承認済みアプリ」から、当サイトとの連携を解除することもできます（解除しても当サイトのアカウントは削除されません）。</p>'],
       ['保有している情報の開示・訂正・削除などのご請求', '<p>当サイトが保有しているご本人の情報について、開示・訂正・追加・削除・利用停止などをご希望の場合は、ご本人のアカウントでログインした状態で<a href="#/contact">お問い合わせ</a>からご連絡ください。</p><p>ログイン中のアカウントからの送信をもって本人確認とし、内容を確認のうえ、マイページの「お問い合わせ履歴」でご回答します。手数料はかかりません。</p>'],
       ['改定', '<p>本ポリシーは必要に応じて改定することがあります。改定後の内容は、本ページに掲示した時点で効力を持ちます。</p>'],
     ]],
@@ -1182,6 +1182,8 @@
           <p><a class="btn btn-outline btn-block" href="#/admin/contacts">お問い合わせ一覧を見る</a></p>
           <p><a class="btn btn-outline btn-block" href="#/admin/audit">管理操作の履歴</a></p>
           <div class="adm-season"><b>シーズン</b><p class="small" id="season-now">読み込み中…</p>
+            <label class="small" for="season-name">シーズン名（例：PRE STAGE。空なら「第N期」と表示）</label>
+            <input id="season-name" maxlength="30" placeholder="第N期">
             <label class="small" for="season-end-at">終了予定日時（入れるとレーティング対戦の画面に表示されます。空にして保存で非表示）</label>
             <div class="row"><input id="season-end-at" type="datetime-local"><button type="button" class="btn-line" id="season-end-save">保存</button></div>
             <div class="row" data-style="margin-top:10px"><input id="season-no" type="number" min="1" max="9999" inputmode="numeric" aria-label="新しいシーズン番号">
@@ -1266,14 +1268,15 @@
       return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`;
     };
     const showSeason = (s) => {
-      $('#season-now').textContent = `現在：第${s.no}期${s.startedAt ? `（${fullDate(s.startedAt)} 開始）` : ''}${s.endsAt ? `／終了予定 ${jstEnd(s.endsAt)}` : ''}`;
+      $('#season-now').textContent = `現在：第${s.no}期${s.name ? `「${s.name}」` : ''}${s.startedAt ? `（${fullDate(s.startedAt)} 開始）` : ''}${s.endsAt ? `／終了予定 ${jstEnd(s.endsAt)}` : ''}`;
       $('#season-no').value = s.no + 1;
+      $('#season-name').value = s.name || '';
       $('#season-end-at').value = s.endsAt ? localInput(s.endsAt) : '';
     };
     $('#season-end-save').addEventListener('click', (ev) => withBusy(ev.currentTarget, async () => {
       const v = $('#season-end-at').value;
-      showSeason(await api('/api/admin/season-end', { method: 'PUT', body: { endsAt: v ? new Date(v).toISOString() : '' } }));
-      toast(v ? '終了予定日時を保存しました' : '終了予定日時の表示をやめました');
+      showSeason(await api('/api/admin/season-end', { method: 'PUT', body: { name: $('#season-name').value, endsAt: v ? new Date(v).toISOString() : '' } }));
+      toast('シーズン名と終了予定日時を保存しました');
     }));
     api('/api/season').then(showSeason).catch(() => { $('#season-now').textContent = '取得できませんでした'; });
     $('#season-set').addEventListener('click', (ev) => {
@@ -1550,7 +1553,9 @@
     api('/api/season').then((s) => {
       if (!s.endsAt || new Date(s.endsAt) < new Date()) return;
       const el = $('#season-end');
-      el.innerHTML = `第${esc(s.no)}期レーティング対戦の終了予定日は<br>「${esc(jstEnd(s.endsAt))}」<br>です。`;
+      // A named season reads 「PRE STAGE」の終了予定日は…; an unnamed one 第N期レーティング対戦の…
+      const label = s.name ? `「${esc(s.name)}」` : `第${esc(s.no)}期レーティング対戦`;
+      el.innerHTML = `${label}の終了予定日は<br>「${esc(jstEnd(s.endsAt))}」<br>です。`;
       el.hidden = false;
     }).catch(() => {});
     const loadStats = () => api('/api/rate/stats').then((s) => { $('#rate-stats').innerHTML = `現在約<b class="red">${s.total}</b>人がレーティング対戦に参加しています。`; }).catch(() => {});
@@ -2037,7 +2042,7 @@
     'contact.delete': 'お問い合わせを削除',
     'contact.reply': 'お問い合わせに返信',
     'season.set': 'シーズンを変更',
-    'season.end': 'シーズン終了予定日を設定',
+    'season.end': 'シーズン名・終了予定日を設定',
   };
   const auditDetail = (e) => {
     if (e.action === 'site.update') return `サイト名「${esc(e.siteName || '')}」／お知らせ${e.notices ?? 0}件`;
@@ -2048,7 +2053,7 @@
     if (e.action === 'contact.delete') return `ID ${esc(e.contactId || '')}`;
     if (e.action === 'contact.reply') return `${esc(e.targetName || '(名前なし)')} さんのお問い合わせ（ID ${esc(e.contactId || '')}）`;
     if (e.action === 'season.set') return `第${esc(e.from)}期 → 第${esc(e.to)}期（レートとランキングをリセット）`;
-    if (e.action === 'season.end') return `第${esc(e.season)}期：${e.endsAt ? esc(jstEnd(e.endsAt)) : '表示を解除'}`;
+    if (e.action === 'season.end') return `第${esc(e.season)}期${e.name ? `「${esc(e.name)}」` : ''}：${e.endsAt ? esc(jstEnd(e.endsAt)) : '終了予定日の表示を解除'}`;
     if (e.target) {
       const name = e.targetName ? esc(e.targetName) : '(名前なし)';
       const extra = e.action === 'user.delete' ? `　<span class="muted">データ${e.removed ?? 0}件を削除</span>` : '';

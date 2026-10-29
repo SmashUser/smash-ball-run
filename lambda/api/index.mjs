@@ -238,6 +238,8 @@ async function ensureProfile(ctx) {
   };
   // listed for player search
   Object.assign(profile, { gsi1pk: 'USER', gsi1sk: profile.createdAt, nameKey: nameKey(profile.name) });
+  // Test accounts stay out of the ranking and search for real players
+  if (isTestAccount(ctx)) profile.test = true;
   try {
     profile.memberNo = takesMemberNo(ctx) ? await nextNumber('USER') : 0;
     await put(profile, 'attribute_not_exists(pk)');
@@ -574,7 +576,10 @@ async function searchUsers(ctx) {
       ExpressionAttributeValues: { ':u': 'USER' },
       ExclusiveStartKey: startKey,
     }));
-    for (const p of r.Items ?? []) if ((p.nameKey ?? nameKey(p.name)).includes(q)) found.push(p);
+    for (const p of r.Items ?? []) {
+      if (p.test && !isTestAccount(ctx)) continue; // test accounts are listed to test accounts only
+      if ((p.nameKey ?? nameKey(p.name)).includes(q)) found.push(p);
+    }
     startKey = r.LastEvaluatedKey;
   } while (startKey && ++pages < 20);
   found.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
@@ -585,19 +590,21 @@ async function searchUsers(ctx) {
 // The admin moves the site to the next season; medals are awarded within the current one.
 async function currentSeason() {
   const s = await get('SEASON', 'CURRENT');
-  return { no: s?.no ?? 1, startedAt: s?.startedAt ?? null, endsAt: s?.endsAt ?? null };
+  return { no: s?.no ?? 1, name: s?.name ?? '', startedAt: s?.startedAt ?? null, endsAt: s?.endsAt ?? null };
 }
 
-// When the end of the current season is known, the rating page announces it
+// The current season's display name (e.g. "PRE STAGE"; empty = 第N期) and, when the end is
+// known, its end date: the rating page announces both
 async function adminSetSeasonEnd(ctx) {
   requireAdmin(ctx);
   const v = String(ctx.body.endsAt ?? '').trim();
   const endsAt = v ? new Date(v) : null;
   if (endsAt && Number.isNaN(endsAt.getTime())) throw new HttpError(400, '終了予定日時を正しく入力してください');
+  const name = text(ctx.body.name, { name: 'シーズン名', max: 30, optional: true });
   const cur = (await get('SEASON', 'CURRENT')) ?? { pk: 'SEASON', sk: 'CURRENT', no: 1, startedAt: null };
   const iso = endsAt ? endsAt.toISOString() : null;
-  await put({ ...cur, endsAt: iso });
-  await audit(ctx, 'season.end', { season: cur.no, endsAt: iso ?? '' });
+  await put({ ...cur, endsAt: iso, name });
+  await audit(ctx, 'season.end', { season: cur.no, name, endsAt: iso ?? '' });
   return currentSeason();
 }
 const getSeason = () => currentSeason();
@@ -616,6 +623,10 @@ async function adminSetSeason(ctx) {
   const prev = resume ? cur.prev : curNo;
   const startedAt = resume ? cur.startedAt : nowIso();
   const season = { pk: 'SEASON', sk: 'CURRENT', no, prev, startedAt, by: ctx.claims.sub };
+  if (!resume) {
+    // Keep the closing season's name and period for later display (the new season starts unnamed)
+    await put({ pk: 'SEASON', sk: `ARCHIVE#${String(prev).padStart(4, '0')}`, no: prev, name: cur?.name ?? '', startedAt: cur?.startedAt ?? null, endedAt: startedAt });
+  }
   await put({ ...season, rollover: 'running' });
   if (!resume) await audit(ctx, 'season.set', { from: prev, to: no });
   const { archived, reset } = await rolloverSeason(prev, no);
@@ -767,7 +778,7 @@ async function ranking(ctx) {
     params.FilterExpression = 'fighter = :f';
     params.ExpressionAttributeValues[':f'] = fighter;
   }
-  const items = await query(params);
+  const items = (await query(params)).filter((p) => !p.test || isTestAccount(ctx));
   return { players: items.slice(0, 100).map(publicUser) };
 }
 
@@ -2246,6 +2257,9 @@ async function adminDeleteUser(ctx, uid) {
     if (e.name !== 'UserNotFoundException') throw e;
   });
   if (prof?.discordId) await del(`DISCORD#${prof.discordId}`, 'LINK');
+  // A deleted account's ID token stays valid for up to an hour; without this marker the next
+  // request with it would recreate an empty profile (authenticate() refuses marked accounts)
+  await put({ pk: `USER#${uid}`, sk: 'BANNED', deleted: true, at: nowIso(), by: ctx.claims.sub });
   await audit(ctx, 'user.delete', { target: uid, targetName: prof?.name ?? '', removed: own.length });
   return { ok: true, removed: own.length };
 }
