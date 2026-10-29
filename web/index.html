@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Site</title>
+  <meta name="description" content="Site description">
+  <!-- Link previews (LINE, X, Discord, etc.) read these static tags -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Site">
+  <meta property="og:title" content="Site">
+  <meta property="og:description" content="Site description">
+  <meta property="og:url" content="https://example.com/">
+  <meta property="og:image" content="https://example.com/assets/logo-mobile.png">
+  <meta name="twitter:card" content="summary">
+  <link rel="icon" href="assets/logo.png">
+  <link rel="stylesheet" href="style.css?v=20261031c">
+</head>
+<body>
+  <div class="topbar"></div>
+  <header class="site-header wrap">
+    <button class="menu-btn" id="menu-btn" aria-label="メニューを開く" aria-controls="drawer" aria-expanded="false"><span></span><span></span><span></span></button>
+    <a class="logo" href="#/">
+      <picture>
+        <source media="(max-width: 768px)" srcset="assets/logo-mobile.png">
+        <img src="assets/logo.png" alt="Versus Arena" data-logo>
+      </picture>
+    </a>
+    <div class="header-mid">
+      <nav class="sub-nav">
+        <a href="#/about">サイトについて</a>
+        <a href="#/terms">利用規約</a>
+        <a href="#/rules">対戦ルール</a>
+        <a href="#/faq">Q＆A</a>
+        <a href="#/contact">お問い合わせ</a>
+        <a href="#/links">リンク集</a>
+      </nav>
+      <form class="search" id="search-form" role="search">
+        <input name="q" placeholder="サイト内検索" aria-label="サイト内検索">
+        <button>検索</button>
+      </form>
+    </div>
+    <div id="account" class="account"></div>
+  </header>
+
+  <nav class="wrap tabs-wrap">
+    <div class="tabs">
+      <a href="#/free" data-nav="free">フリー対戦</a>
+      <a href="#/rate" data-nav="rate">レーティング対戦</a>
+      <a class="nav-off" aria-disabled="true" title="準備中">大会</a>
+      <a href="#/fighters" data-nav="fighters">ファイター一覧</a>
+      <a href="#/diaries" data-nav="diaries">プレイヤー日記</a>
+      <a href="#/ranking" data-nav="ranking">ランキング</a>
+    </div>
+  </nav>
+
+  <div class="wrap"><div id="site-notice"></div></div>
+
+  <main id="app" class="wrap" aria-live="polite"></main>
+
+  <footer class="site-footer">
+    <div class="wrap" id="footer"></div>
+  </footer>
+
+  <!-- Mobile slide-in menu -->
+  <div class="drawer-overlay" id="drawer-overlay" hidden></div>
+  <nav class="drawer" id="drawer" aria-label="メニュー" aria-hidden="true">
+    <div class="dr-head" id="dr-login-head">ログインしていません</div>
+    <div id="dr-account"></div>
+    <div class="dr-head">対戦コンテンツ</div>
+    <a href="#/free">フリー対戦</a>
+    <div class="dr-row"><a href="#/rate">レート対戦</a><a href="#/rules">ルール</a></div>
+    <a class="nav-off" aria-disabled="true">トーナメント大会（準備中）</a>
+    <div class="dr-head">ランキング</div>
+    <a href="#/ranking">レーティング</a>
+    <a href="#/fighters/0">キャラクター別ランキング</a>
+    <div class="dr-head">その他</div>
+    <a href="#/fighters">ファイター一覧</a>
+    <a href="#/diaries">プレイヤー日記</a>
+    <a href="#/search">サイト内検索</a>
+    <a class="nav-off" aria-disabled="true">シンボルガチャ（準備中）</a>
+    <a class="nav-off" aria-disabled="true">ミニマムゲーム（準備中）</a>
+    <div class="dr-head">サイト概要</div>
+    <a href="#/about">サイトについて</a>
+    <a href="#/terms">利用規約</a>
+    <a href="#/privacy">プライバシーポリシー</a>
+    <a href="#/faq">Q＆A</a>
+    <a href="#/contact">お問い合わせ</a>
+    <a href="#/links">リンク集</a>
+  </nav>
+
+  <div id="toast" class="toast" role="status"></div>
+  <script src="fighters.js?v=20261031c"></script>
+  <script src="app.js?v=20261031c"></script>
+</body>
+</html>

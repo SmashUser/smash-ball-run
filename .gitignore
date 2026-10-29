@@ -1,0 +1,22 @@
+# dependencies / build output
+node_modules/
+cdk.out/
+cdk.context.json
+*.tsbuildinfo
+
+# generated at deploy time
+web/config.json
+cdk-outputs.json
+
+# secrets — never commit
+.origin-secret*
+*.pem
+*.key
+.env
+.env.*
+
+# editor / OS noise
+.DS_Store
+Thumbs.db
+*.log
+*.bak-*
