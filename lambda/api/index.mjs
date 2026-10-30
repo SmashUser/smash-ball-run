@@ -524,7 +524,7 @@ async function updateMe(ctx) {
 
 async function getUser(ctx, uid) {
   const p = await getProfile(uid);
-  if (!p) throw new HttpError(404, 'プレイヤーが見つかりません');
+  if (!p) throw new HttpError(404, (await get(`USER#${uid}`, 'BANNED'))?.deleted ? '既に退会されたユーザーです。' : 'プレイヤーが見つかりません');
   const [history, diaries, introCount, medals] = await Promise.all([
     query({
       KeyConditionExpression: 'pk = :p AND begins_with(sk, :s)',
@@ -602,10 +602,14 @@ async function searchUsers(ctx) {
 
 // ---------- Seasons ----------
 // The admin moves the site to the next season; medals are awarded within the current one.
+// Once its end date has passed a season is over: no new rated matches until the admin starts the
+// next one (which is also when ratings reset; until then the final ratings and ranking stay).
 async function currentSeason() {
   const s = await get('SEASON', 'CURRENT');
-  return { no: s?.no ?? 1, name: s?.name ?? '', startedAt: s?.startedAt ?? null, endsAt: s?.endsAt ?? null };
+  const endsAt = s?.endsAt ?? null;
+  return { no: s?.no ?? 1, name: s?.name ?? '', startedAt: s?.startedAt ?? null, endsAt, ended: Boolean(endsAt && Date.now() >= Date.parse(endsAt)) };
 }
+const seasonLabel = (s) => (s.name ? `「${s.name}」` : `第${s.no}期`);
 
 // The current season's display name (e.g. "PRE STAGE"; empty = 第N期) and, when the end is
 // known, its end date: the rating page announces both
@@ -747,7 +751,7 @@ async function writeIntro(ctx, uid) {
   const p = await ensureProfile(ctx);
   if (p.userId === uid) throw new HttpError(400, '自分の紹介文は書けません');
   const target = await getProfile(uid);
-  if (target?.allowIntro === false) throw new HttpError(403, 'このプレイヤーは紹介文を受け付けていません');
+  if (!target) throw new HttpError(404, 'プレイヤーが見つかりません');
   const played = await query({
     KeyConditionExpression: 'pk = :p AND begins_with(sk, :s)',
     FilterExpression: 'opponentId = :o',
@@ -756,6 +760,9 @@ async function writeIntro(ctx, uid) {
   if (!played.length) throw new HttpError(403, 'レーティング対戦で対戦したプレイヤーにのみ書けます');
   const fighter = fighterOf(ctx.body.fighter, { optional: true });
   const body = text(ctx.body.text, { name: '紹介文', max: 500, optional: true });
+  // A player who turned intros off still gets character votes from opponents (that is how a
+  // player's character is decided), just no text
+  if (target.allowIntro === false && body) throw new HttpError(403, 'このプレイヤーは紹介文を受け付けていません（使用キャラの投票はできます）');
   if (!fighter && !body) throw new HttpError(400, '使用キャラクターか紹介文を入力してください');
   await put({
     pk: `USER#${uid}`,
@@ -875,6 +882,9 @@ async function enqueue(ctx) {
   if (current) return { state: 'matched', matchId: current.matchId };
   // Opponents look for this name in the game, so a placeholder is not good enough
   if (p.name === NAME_UNSET) throw new HttpError(400, 'マイページの「プロフィールを編集する」から、ユーザー名を設定してください');
+  // The season closes by itself at its end date (rooms already matched can still report)
+  const season = await currentSeason();
+  if (season.ended) throw new HttpError(409, `${seasonLabel(season)}レーティング対戦は終了しました`);
   const fighter = ctx.body.fighter === OMAKASE ? OMAKASE : fighterOf(ctx.body.fighter, { optional: true }) || p.fighter;
   if (!fighter) throw new HttpError(400, '1戦目に使用するキャラを選択してください');
   // Remember it so the lobby pre-selects the same character next time

@@ -1040,6 +1040,9 @@ a { color: #303ca8; }
 
 /* Season end notice under 対戦相手を探す */
 .season-end { margin: 0 0 10px; color: #e60012; font-weight: 700; font-size: 1.05rem; line-height: 1.55; }
+/* After the season's end date: the rating page says only this */
+.season-over { margin: 0 0 10px; font-weight: 700; }
+.error-page { margin: 16px 0 24px; }
 /* 1st fighter and switch settings: buttons that look like the select they replaced */
 .pick-btn { display: block; width: 100%; margin-top: 10px; padding: 6px 12px; border: 1px solid #ccc; border-radius: 4px; background: #fff;
   font: inherit; font-size: 14px; line-height: 1.42857; color: #333; text-align: center; cursor: pointer; }

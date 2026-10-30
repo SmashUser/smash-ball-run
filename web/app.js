@@ -219,6 +219,8 @@
   const fighterOptions = (selected, { omakase = false } = {}) =>
     `<option value="">（未設定）</option>${omakase ? `<option ${selected === 'おまかせ' ? 'selected' : ''}>おまかせ</option>` : ''}${window.FIGHTERS.map((f) => `<option ${f === selected ? 'selected' : ''}>${esc(f)}</option>`).join('')}`;
   const errorBox = (e) => `<div class="error-box">${esc(e.message || e)}</div>`;
+  // A page that could not be shown (e.g. a withdrawn player): like the original's エラーページ
+  const errorPage = (e) => layout({ crumb: 'エラーページ', title: 'エラーページ', single: `<p class="error-page">${esc(e.message || e)}</p>` });
   const formData = (form) => Object.fromEntries(new FormData(form).entries());
   const spinner = '<div class="spinner"></div>';
 
@@ -456,7 +458,7 @@
     let m;
     try { m = await api(`/api/matches/${id}`); } catch (e) {
       if (!me) { requireLogin('レーティング対戦'); return; }
-      app.innerHTML = errorBox(e); return;
+      app.innerHTML = errorPage(e); return;
     }
     // On a site with public rooms anyone can look in; only the two players can act
     const member = Boolean(me && m.players.includes(me.userId));
@@ -698,7 +700,7 @@
 
   async function pageTournament(id) {
     let data;
-    try { data = await api(`/api/tournaments/${id}`); } catch (e) { app.innerHTML = errorBox(e); return; }
+    try { data = await api(`/api/tournaments/${id}`); } catch (e) { app.innerHTML = errorPage(e); return; }
     const { tournament: t, entries } = data;
     const byId = Object.fromEntries(entries.map((e) => [e.userId, e]));
     const isOrg = me && t.organizerId === me.userId;
@@ -814,9 +816,11 @@
   // Introduction page (public profile)
   async function pageIntro(uid) {
     let data, intro;
-    try { [data, intro] = await Promise.all([api(`/api/users/${uid}`), api(`/api/users/${uid}/intros`)]); } catch (e) { app.innerHTML = errorBox(e); return; }
+    try { [data, intro] = await Promise.all([api(`/api/users/${uid}`), api(`/api/users/${uid}/intros`)]); } catch (e) { app.innerHTML = errorPage(e); return; }
     const u = data.user;
-    const canWrite = me && me.userId !== uid && data.user.allowIntro !== false && data.history.some((h) => h.opponentId === me.userId);
+    // Opponents may always vote for the character; the text needs the player's permission
+    const canWrite = me && me.userId !== uid && data.history.some((h) => h.opponentId === me.userId);
+    const textOk = data.user.allowIntro !== false;
     const mineIntro = me && intro.intros.find((i) => i.authorId === me.userId);
     const PER = 20;
     let page = 0;
@@ -836,9 +840,9 @@
                <button type="button" class="btn-line ip-voters-btn" id="voters-btn">投票したプレイヤーを見る(直近10件)</button>
                <ul class="list-plain ip-voters" id="voters" hidden>${intro.voters.map((v) => `<li class="row">${userLink(v.authorId, v.authorName)}<span class="spacer"></span>${fthumb(v.fighter)}</li>`).join('')}</ul>`
             : '<p class="ip-none">まだ投票はありません。</p>'}</section>
-        ${canWrite ? `<section class="ip-sec"><h2 class="box-head">使用キャラ投票・紹介文</h2><form id="intro-form" class="ip-form">
+        ${canWrite ? `<section class="ip-sec"><h2 class="box-head">${textOk ? '使用キャラ投票・紹介文' : '使用キャラ投票'}</h2><form id="intro-form" class="ip-form">
             <div class="field"><label for="i-fighter">使用キャラクター</label><select id="i-fighter" name="fighter">${fighterOptions(mineIntro?.fighter || '')}</select></div>
-            <div class="field"><label for="i-text">紹介文</label><textarea id="i-text" name="text" maxlength="500">${esc(mineIntro?.text || '')}</textarea></div>
+            ${textOk ? `<div class="field"><label for="i-text">紹介文</label><textarea id="i-text" name="text" maxlength="500">${esc(mineIntro?.text || '')}</textarea></div>` : '<p class="small muted">このプレイヤーは紹介文を受け付けていないため、使用キャラの投票だけできます。</p>'}
             <div class="cmt-submit"><button class="btn-blue2">${mineIntro ? '更新する' : '投稿する'}</button></div></form></section>` : ''}
         <section class="ip-sec"><h2 class="box-head">紹介文 ${list.length}件</h2><div id="intros"></div><div class="pager" id="pager"></div></section>`,
     });
@@ -902,7 +906,7 @@
 
   async function pageUserDiaries(uid) {
     let data;
-    try { data = await api(`/api/users/${uid}`); } catch (e) { app.innerHTML = errorBox(e); return; }
+    try { data = await api(`/api/users/${uid}`); } catch (e) { app.innerHTML = errorPage(e); return; }
     app.innerHTML = layout({
       crumb: [userLink(uid, data.user.name), '日記一覧'],
       title: `${data.user.name} の日記`,
@@ -994,7 +998,7 @@
       ['マッチングの流れ', '<ul><li>部屋IDが設定された待機中の部屋があれば、その部屋に入ってマッチングします。</li><li>入れる部屋がない場合は、あなたが部屋を立てる側になります。ゲーム内で専用部屋を作り、部屋IDを入力して「設定」を押してください。パスワードは対戦ルームに表示されたものを使います。</li><li>部屋を立てた側は、対戦相手が入るまで待機画面を開いたままにしてください。画面を閉じたりスマホがスリープしたりして5分以上たつと、募集の対象外になります（画面を開き直すと戻ります）。</li><li>募集をやめる場合は「部屋を削除する」を押してください。</li></ul>'],
       ['ステージの選び方', '<ul><li><b>1戦目</b>：スターターステージから、双方の拒否ステージを除いたステージを選びます（✕印のステージは選べません）。</li><li><b>2,3戦目</b>：直前の試合の敗者が選びます。勝者の拒否ステージは選べません。3戦目は1戦目の勝利ステージを選べません。</li></ul>'],
       ['スイッチ設定・おまかせ', SWITCH_HELP],
-      ['2戦目以降のキャラ', '<p>直前の試合の敗者は、2戦目以降のキャラを変更できます。勝者は同じキャラを使い続けてください。対戦ルームの「自分の2戦目以降使用キャラ」で設定すると、相手に表示されます。</p>'],
+      ['2戦目以降のキャラ', '<p>直前の試合の敗者は、2戦目以降のキャラを変更できます。勝者は同じキャラを使い続けてください。対戦ルームの「自分の2戦目以降使用キャラ」で設定すると、そのキャラに対する相手の拒否ステージを除いた、2戦目以降に選べるステージが表示されます。</p>'],
       ['結果の報告', '<p>2本先取した時点で対戦終了です。対戦ルームの「結果送信」で「勝ち」または「負け」を押してください。報告は何度でも押し直せます。</p><p>マッチングから2分間は「勝ち」「負け」を報告できません（「対戦中止」はいつでも押せます）。</p><p>報告した時点で、相手の報告を待たずに次の対戦相手を探せます。双方の報告が一致した時点でレートが更新されます（相手があとから報告した場合も、そのときに反映されます）。</p><p>対戦できなかった場合は「対戦中止」を押してください。双方が「対戦中止」を押した時点でルームが終了します（レートは変動しません）。</p><p>報告が食い違っている間（「勝ち」と「勝ち」、「勝ち」と「対戦中止」など）はルームが終了せず、双方のマイページに「結果が不一致の対戦ルームがあります」と表示されます。コメント欄で相手と確認して、押し直してください。</p><p>相手が報告しない・不正な中止をされたなどのトラブルは、<a href="#/contact">お問い合わせ</a>からご連絡ください。</p>'],
       ['レートの計算', '<p>初期レートは1500です。イロレーティング方式（K=32）で計算し、格上に勝つほど大きく上がり、格下に負けるほど大きく下がります。</p>'],
       ['マナー', '<ul><li>マッチング後は速やかに対戦を始めてください。</li><li>回線切断などのトラブルが起きた場合は、コメント欄で相談して再戦または中止にしてください。</li><li>やむを得ず対戦できない場合は「対戦中止」を押してください。</li><li>対戦後は、相手の紹介ページで使用キャラクターへの投票にご協力ください。</li></ul>'],
@@ -1200,7 +1204,7 @@
           <div class="adm-season"><b>シーズン</b><p class="small" id="season-now">読み込み中…</p>
             <label class="small" for="season-name">シーズン名（例：PRE STAGE。空なら「第N期」と表示）</label>
             <input id="season-name" maxlength="30" placeholder="第N期">
-            <label class="small" for="season-end-at">終了予定日時（入れるとレーティング対戦の画面に表示されます。空にして保存で非表示）</label>
+            <label class="small" for="season-end-at">終了予定日時（この日時を過ぎると、レーティング対戦は自動で締め切られます。空にして保存で解除）</label>
             <div class="row"><input id="season-end-at" type="datetime-local"><button type="button" class="btn-line" id="season-end-save">保存</button></div>
             <div class="row" data-style="margin-top:10px"><input id="season-no" type="number" min="1" max="9999" inputmode="numeric" aria-label="新しいシーズン番号">
             <button type="button" class="btn-line" id="season-set">シーズンを変更</button></div>
@@ -1284,7 +1288,7 @@
       return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`;
     };
     const showSeason = (s) => {
-      $('#season-now').textContent = `現在：第${s.no}期${s.name ? `「${s.name}」` : ''}${s.startedAt ? `（${fullDate(s.startedAt)} 開始）` : ''}${s.endsAt ? `／終了予定 ${jstEnd(s.endsAt)}` : ''}`;
+      $('#season-now').textContent = `現在：第${s.no}期${s.name ? `「${s.name}」` : ''}${s.startedAt ? `（${fullDate(s.startedAt)} 開始）` : ''}${s.endsAt ? `／${s.ended ? '終了しました' : '終了予定'} ${jstEnd(s.endsAt)}` : ''}${s.ended ? '（次のシーズンに進めるまで、レーティング対戦は締め切られています）' : ''}`;
       $('#season-no').value = s.no + 1;
       $('#season-name').value = s.name || '';
       $('#season-end-at').value = s.endsAt ? localInput(s.endsAt) : '';
@@ -1498,7 +1502,7 @@
 
   async function pageFreeRoom(id) {
     let room;
-    try { room = await api(`/api/free/rooms/${id}`); } catch (e) { app.innerHTML = errorBox(e); return; }
+    try { room = await api(`/api/free/rooms/${id}`); } catch (e) { app.innerHTML = errorPage(e); return; }
     const isMember = me && (room.hostId === me.userId || room.guestId === me.userId);
     const openMs = (room.waitMin || 180) * 60000;
     const expired = room.status === 'open' && Date.now() - new Date(room.createdAt).getTime() > openMs;
@@ -1559,21 +1563,36 @@
   // ---------- Rated match lobby ----------
   async function pageRate() {
     if (me) { await loadMe(); renderAccount(); }
+    const season = await api('/api/season').catch(() => null);
+    // After the end date the season is over until the next one starts. Like the original, the
+    // lobby box only says so (no search form), and the room list stays; a player still in a room
+    // from before the end can finish it from here.
+    const ended = Boolean(season?.ended);
+    const endedBox = () => `<p class="season-over">${season.name ? `「${esc(season.name)}」` : '今期の'}レーティング対戦は終了しました。</p>
+      ${me?.currentMatchId ? `<p><a href="#/match/${esc(me.currentMatchId)}">参加中の対戦ルームへ</a></p>` : ''}
+      ${me ? '' : `<p>レーティング対戦は、${esc(siteName())} に登録すると参加できます。</p>`}`;
     app.innerHTML = layout({
       crumb: 'レーティング対戦',
       title: 'レーティング対戦',
-      side: box('対戦相手を探す', `<p class="season-end" id="season-end" hidden></p><p id="rate-stats" class="small"></p><div id="queue">${me ? spinner : `<p>レーティング対戦は、${esc(siteName())} に登録すると参加できます。</p><div data-style="display:grid;gap:6px">${loginButtons()}</div>`}</div>`),
+      side: box('対戦相手を探す', ended ? endedBox() : `<p class="season-end" id="season-end" hidden></p><p id="rate-stats" class="small"></p><div id="queue">${me ? spinner : `<p>レーティング対戦は、${esc(siteName())} に登録すると参加できます。</p><div data-style="display:grid;gap:6px">${loginButtons()}</div>`}</div>`),
       main: `<div class="box-body flush gray" id="matches" data-style="margin-top:0">${spinner}</div>`,
     });
     bindLoginButtons(app);
-    api('/api/season').then((s) => {
-      if (!s.endsAt || new Date(s.endsAt) < new Date()) return;
+    if (ended) {
+      const loadEnded = async () => {
+        try { const { matches } = await api('/api/matches'); $('#matches').innerHTML = rateRows(matches); bindRowLinks($('#matches')); } catch (e) { $('#matches').innerHTML = errorBox(e); }
+      };
+      loadEnded();
+      every(30000, loadEnded);
+      return;
+    }
+    if (season?.endsAt) {
       const el = $('#season-end');
       // A named season reads 「PRE STAGE」の終了予定日は…; an unnamed one 第N期レーティング対戦の…
-      const label = s.name ? `「${esc(s.name)}」` : `第${esc(s.no)}期レーティング対戦`;
-      el.innerHTML = `${label}の終了予定日は<br>「${esc(jstEnd(s.endsAt))}」<br>です。`;
+      const label = season.name ? `「${esc(season.name)}」` : `第${esc(season.no)}期レーティング対戦`;
+      el.innerHTML = `${label}の終了予定日は<br>「${esc(jstEnd(season.endsAt))}」<br>です。`;
       el.hidden = false;
-    }).catch(() => {});
+    }
     const loadStats = () => api('/api/rate/stats').then((s) => {
       $('#rate-stats').innerHTML = s.total ? `現在約<b class="red">${s.total}</b>人がレーティング対戦に参加しています。` : '現在、レーティング対戦に参加しているプレイヤーはいません。';
     }).catch(() => {});
@@ -1679,7 +1698,7 @@
   // ---------- Diary detail with likes & comments ----------
   async function pageDiary(uid, did) {
     let d;
-    try { d = await api(`/api/users/${uid}/diaries/${did}`); } catch (e) { app.innerHTML = errorBox(e); return; }
+    try { d = await api(`/api/users/${uid}/diaries/${did}`); } catch (e) { app.innerHTML = errorPage(e); return; }
     const liked = me && d.likes.some((l) => l.userId === me.userId);
     app.innerHTML = layout({
       crumb: [crumbLink('#/diaries', '日記一覧'), esc(d.title)],
@@ -2167,7 +2186,7 @@
     if (!requireLogin('管理操作の履歴')) return;
     if (!me.isAdmin) { app.innerHTML = errorBox('このページは管理者のみ利用できます。'); return; }
     let entries;
-    try { ({ entries } = await api('/api/admin/audit')); } catch (e) { app.innerHTML = errorBox(e); return; }
+    try { ({ entries } = await api('/api/admin/audit')); } catch (e) { app.innerHTML = errorPage(e); return; }
     app.innerHTML = layout({
       crumb: [crumbLink('#/admin', '管理ページ'), '管理操作の履歴'],
       title: '管理操作の履歴',
@@ -2432,7 +2451,7 @@
   async function pageUser(uid) {
     if (me && uid === me.userId) { location.hash = '#/mypage'; return; }
     let data;
-    try { data = await profileData(uid); } catch (e) { app.innerHTML = errorBox(e); return; }
+    try { data = await profileData(uid); } catch (e) { app.innerHTML = errorPage(e); return; }
     profileLayout(data.user, data, { own: false });
   }
 
@@ -2656,7 +2675,7 @@
       if (!m) continue;
       document.querySelectorAll('[data-nav]').forEach((a) => a.classList.toggle('active', a.dataset.nav === nav));
       app.innerHTML = spinner;
-      try { await fn(...m.slice(1)); } catch (e) { console.error(e); if (gen === routeGen) app.innerHTML = errorBox(e); }
+      try { await fn(...m.slice(1)); } catch (e) { console.error(e); if (gen === routeGen) app.innerHTML = errorPage(e); }
       return;
     }
     pageNotFound();
