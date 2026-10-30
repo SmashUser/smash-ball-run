@@ -65,6 +65,8 @@ export interface SiteConfig {
   publicRooms?: boolean;
   /** Keep the site out of search engines (verification environments) */
   noindex?: boolean;
+  /** The domain sends and receives no mail (SPF/DMARC/null MX against spoofing) and only Amazon may issue its certificates (CAA) */
+  lockedDownDomain?: boolean;
   /** Which set of default page texts the site shows ('sbr' = the public rated-matches site) */
   edition?: string;
   /** Leave unavailable features out of the menus altogether instead of greying them out (準備中) */
@@ -207,6 +209,14 @@ export class VersusArenaStack extends cdk.Stack {
       // Versions protect against mistakes, but a replaced or deleted image must not live on:
       // older versions go after 35 days (the same window as the table's point-in-time backups)
       lifecycleRules: [{ noncurrentVersionExpiration: cdk.Duration.days(35), expiredObjectDeleteMarker: true }],
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+    // Images attached to inquiries: private, never behind CloudFront. Only the API reads them,
+    // for the sender and the operators. Deleting the inquiry deletes them (no versioning).
+    const contactBucket = new s3.Bucket(this, 'ContactBucket', {
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      enforceSSL: true,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
@@ -356,6 +366,21 @@ function handler(event) {
         new route53.ARecord(this, `${id}A`, { zone, recordName: name, target });
         new route53.AaaaRecord(this, `${id}Aaaa`, { zone, recordName: name, target });
       }
+      if (props.site.lockedDownDomain) {
+        // Nobody may send mail as this domain, it accepts none (RFC 7505 null MX), and certificates
+        // for it may only come from Amazon (ACM), never as wildcards
+        new route53.TxtRecord(this, 'Spf', { zone, recordName: props.domainName!, values: ['v=spf1 -all'] });
+        new route53.TxtRecord(this, 'Dmarc', { zone, recordName: `_dmarc.${props.domainName}`, values: ['v=DMARC1; p=reject; sp=reject; adkim=s; aspf=s'] });
+        new route53.MxRecord(this, 'NullMx', { zone, recordName: props.domainName!, values: [{ priority: 0, hostName: '.' }] });
+        new route53.CaaRecord(this, 'Caa', {
+          zone,
+          recordName: props.domainName!,
+          values: [
+            { flag: 0, tag: route53.CaaTag.ISSUE, value: 'amazon.com' },
+            { flag: 0, tag: route53.CaaTag.ISSUEWILD, value: ';' },
+          ],
+        });
+      }
     }
 
     // ---------- Auth ----------
@@ -452,6 +477,7 @@ function handler(event) {
       environment: {
         TABLE_NAME: table.tableName,
         AVATAR_BUCKET: avatarBucket.bucketName,
+        CONTACT_BUCKET: contactBucket.bucketName,
         SITE_URL: siteUrl,
         USER_POOL_ID: userPool.userPoolId,
         CLIENT_ID: client.userPoolClientId,
@@ -487,6 +513,9 @@ function handler(event) {
     }));
     avatarBucket.grantPut(apiFn, 'avatars/*');
     avatarBucket.grantDelete(apiFn, 'avatars/*'); // account deletion removes the public image
+    contactBucket.grantPut(apiFn, 'contact/*');
+    contactBucket.grantRead(apiFn, 'contact/*');
+    contactBucket.grantDelete(apiFn, 'contact/*');
     // Read the Discord client secret (SecureString with the AWS-managed SSM key)
     apiFn.addToRolePolicy(new iam.PolicyStatement({
       actions: ['ssm:GetParameter'],

@@ -10,7 +10,7 @@ import {
   DeleteCommand,
   TransactWriteCommand,
 } from '@aws-sdk/lib-dynamodb';
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import {
   CognitoIdentityProviderClient,
   InitiateAuthCommand,
@@ -1938,14 +1938,44 @@ async function uploadAvatar(ctx) {
 }
 
 // ---------- Contact form ----------
-const CONTACT_TYPES = ['不具合報告', '悪質利用者の報告', '要望', 'その他'];
+const CONTACT_TYPES = ['不具合報告', '悪質利用者の報告', '要望', '画像・資料の提供', 'その他'];
+const CONTACT_MAX_IMAGES = 3;
+const CONTACT_IMAGE_MAX_BYTES = 1_000_000;
+const CONTACT_PER_DAY = 10;
+const contactImageKey = (id, n) => `contact/${id}/${n}.jpg`;
+
+// Attached images: JPEG only (the page converts screenshots before sending), metadata such as
+// GPS location removed. They are stored privately and only the sender and the operators can view them.
+function contactImage(v, n) {
+  const raw = Buffer.from(String(v || '').replace(/^data:image\/jpeg;base64,/, ''), 'base64');
+  if (raw.length < 100 || raw.length > CONTACT_IMAGE_MAX_BYTES || raw[0] !== 0xff || raw[1] !== 0xd8) {
+    throw new HttpError(400, `${n}枚目の画像を読み込めませんでした。別の画像でお試しください`);
+  }
+  const buf = stripJpegMetadata(raw);
+  const size = buf && jpegSize(buf);
+  if (!size || size.w > 4000 || size.h > 20000) throw new HttpError(400, `${n}枚目の画像を読み込めませんでした。別の画像でお試しください`);
+  return buf;
+}
+
 async function postContact(ctx) {
   const p = await ensureProfile(ctx);
   const type = CONTACT_TYPES.includes(ctx.body.type) ? ctx.body.type : 'その他';
   const body = text(ctx.body.body, { name: '内容', max: 3000 });
+  const images = Array.isArray(ctx.body.images) ? ctx.body.images : [];
+  if (images.length > CONTACT_MAX_IMAGES) throw new HttpError(400, `添付できる画像は${CONTACT_MAX_IMAGES}枚までです`);
+  const bufs = images.map((v, i) => contactImage(v, i + 1));
+  const recent = await query({
+    KeyConditionExpression: 'pk = :p AND begins_with(sk, :s)', FilterExpression: '#at >= :since', ExpressionAttributeNames: { '#at': 'at' },
+    ExpressionAttributeValues: { ':p': p.pk, ':s': 'CONTACT#', ':since': new Date(Date.now() - 86400_000).toISOString() },
+  });
+  if (recent.length >= CONTACT_PER_DAY) throw new HttpError(429, `お問い合わせは1日${CONTACT_PER_DAY}件までです。時間をおいてお送りください`);
   const at = nowIso();
   const id = shortId();
-  await put({ pk: `CONTACT#${id}`, sk: 'META', gsi1pk: 'CONTACT', gsi1sk: at, type, body, userId: p.userId, name: p.name, email: isDiscordEmail(ctx.claims.email) ? '' : ctx.claims.email ?? '', at });
+  // Files first, so a saved inquiry never points at images that are not there
+  await Promise.all(bufs.map((buf, n) => s3.send(new PutObjectCommand({
+    Bucket: process.env.CONTACT_BUCKET, Key: contactImageKey(id, n), Body: buf, ContentType: 'image/jpeg',
+  }))));
+  await put({ pk: `CONTACT#${id}`, sk: 'META', gsi1pk: 'CONTACT', gsi1sk: at, type, body, images: bufs.length, userId: p.userId, name: p.name, email: isDiscordEmail(ctx.claims.email) ? '' : ctx.claims.email ?? '', at });
   // The sender's own list of inquiries (and where replies are flagged as unread)
   await put({ pk: p.pk, sk: `CONTACT#${id}`, contactId: id, at });
   return { ok: true };
@@ -1958,10 +1988,21 @@ async function listContacts(ctx) {
 async function deleteContact(ctx, id) {
   requireAdmin(ctx);
   const c = await get(`CONTACT#${id}`, 'META');
+  await Promise.all(Array.from({ length: c?.images ?? 0 }, (_, n) => s3.send(new DeleteObjectCommand({ Bucket: process.env.CONTACT_BUCKET, Key: contactImageKey(id, n) }))));
   await del(`CONTACT#${id}`, 'META');
   if (c?.userId) await del(`USER#${c.userId}`, `CONTACT#${id}`);
   await audit(ctx, 'contact.delete', { contactId: id });
   return listContacts(ctx);
+}
+
+// One attached image, for the sender or an operator (as a data: URL; images are never public)
+async function contactImageGet(ctx, id, n) {
+  const uid = requireUser(ctx);
+  const c = await get(`CONTACT#${id}`, 'META');
+  const i = Number(n);
+  if (!c || !(isAdmin(ctx) || c.userId === uid) || !(i < (c.images ?? 0))) throw new HttpError(404, '画像が見つかりません');
+  const r = await s3.send(new GetObjectCommand({ Bucket: process.env.CONTACT_BUCKET, Key: contactImageKey(id, i) }));
+  return { image: `data:image/jpeg;base64,${Buffer.from(await r.Body.transformToByteArray()).toString('base64')}` };
 }
 
 // A reply from the operators. The sender sees it under マイページ → お問い合わせ履歴 (there is no
@@ -1996,7 +2037,7 @@ async function myContacts(ctx) {
   items.sort((a, b) => b.at.localeCompare(a.at));
   return {
     contacts: items.map((c) => ({
-      id: c.pk.slice(8), type: c.type, body: c.body, at: c.at, replies: c.replies ?? [],
+      id: c.pk.slice(8), type: c.type, body: c.body, images: c.images ?? 0, at: c.at, replies: c.replies ?? [],
       unread: Boolean(refs.find((r) => r.contactId === c.pk.slice(8))?.unread),
     })),
   };
@@ -2220,6 +2261,33 @@ async function adminDeleteUser(ctx, uid) {
   targetUser(ctx, uid);
   // The admin page sends this only after "削除" has been typed in (guards against mis-taps / stray calls)
   if (ctx.query.confirm !== 'delete') throw new HttpError(400, '確認のため「削除」と入力してください');
+  const { prof, removed } = await removeAccount(uid, ctx.claims.sub);
+  await audit(ctx, 'user.delete', { target: uid, targetName: prof?.name ?? '', removed });
+  return { ok: true, removed };
+}
+
+// 退会 from My Page: the same clean-up as the admin delete, for the signed-in account itself.
+// Not while one of its rooms is unsettled: the opponent's report would have no one left to rate.
+async function withdrawMe(ctx) {
+  const uid = requireUser(ctx);
+  if (ctx.query.confirm !== 'withdraw') throw new HttpError(400, '退会の確認ができませんでした。もう一度お試しください');
+  if (isAdminSub(uid)) throw new HttpError(400, '管理者のアカウントは退会できません');
+  const [current, mismatches, recent] = await Promise.all([
+    activeCurrent(uid),
+    query({ KeyConditionExpression: 'pk = :p AND begins_with(sk, :s)', ExpressionAttributeValues: { ':p': `USER#${uid}`, ':s': 'MISMATCH#' } }),
+    query({ IndexName: 'gsi1', KeyConditionExpression: 'gsi1pk = :p', ExpressionAttributeValues: { ':p': 'MATCH' }, ScanIndexForward: false, Limit: 200 }),
+  ]);
+  if (current || mismatches.length || recent.some((m) => m.status === 'playing' && m.players?.includes(uid))) {
+    throw new HttpError(409, '結果が確定していない対戦ルームがあります。対戦の結果が確定してから退会してください');
+  }
+  const { prof, removed } = await removeAccount(uid, uid);
+  await audit(ctx, 'user.withdraw', { target: uid, targetName: prof?.name ?? '', byName: prof?.name ?? '', removed });
+  ctx.setCookies.push(clearCookie(C_ID), clearCookie(C_RT), clearCookie(C_CSRF));
+  return { ok: true };
+}
+
+// Everything an account owns except its match history, then its sign-in identity
+async function removeAccount(uid, by) {
   const prof = await getProfile(uid);
   // Data first, and paged: if this fails halfway the account still exists in the admin list,
   // so the delete can simply be run again. Match history stays so opponents' records hold.
@@ -2250,9 +2318,8 @@ async function adminDeleteUser(ctx, uid) {
   if (prof?.discordId) await del(`DISCORD#${prof.discordId}`, 'LINK');
   // A deleted account's ID token stays valid for up to an hour; without this marker the next
   // request with it would recreate an empty profile (authenticate() refuses marked accounts)
-  await put({ pk: `USER#${uid}`, sk: 'BANNED', deleted: true, at: nowIso(), by: ctx.claims.sub });
-  await audit(ctx, 'user.delete', { target: uid, targetName: prof?.name ?? '', removed: own.length });
-  return { ok: true, removed: own.length };
+  await put({ pk: `USER#${uid}`, sk: 'BANNED', deleted: true, at: nowIso(), by });
+  return { prof, removed: own.length };
 }
 
 // ---------- Router ----------
@@ -2260,6 +2327,7 @@ const ID = '([A-Za-z0-9_-]+)';
 const routes = [
   ['GET', /^\/api\/me$/, getMe],
   ['PUT', /^\/api\/me$/, updateMe],
+  ['DELETE', /^\/api\/me$/, withdrawMe],
   ['PUT', /^\/api\/me\/stages$/, updateStages],
   ['GET', /^\/api\/site$/, getSite],
   ['PUT', /^\/api\/admin\/site$/, updateSite],
@@ -2276,6 +2344,7 @@ const routes = [
   ['GET', /^\/api\/me\/contacts$/, myContacts],
   ['POST', /^\/api\/me\/contacts\/read$/, readMyContacts],
   ['POST', /^\/api\/contact$/, postContact],
+  ['GET', new RegExp(`^/api/contacts/${ID}/images/([0-9])$`), contactImageGet],
   ['PUT', /^\/api\/me\/avatar$/, uploadAvatar],
   ['GET', /^\/api\/me\/memos$/, listMemos],
   ['PUT', /^\/api\/me\/memos\/(\d{1,3})$/, saveMemo],
@@ -2675,11 +2744,13 @@ export const handler = async (event) => {
     const path = event.rawPath.replace(/\/+$/, '');
     const cookies = parseCookies(event.cookies);
 
-    // Reject oversized payloads before anything parses them (the avatar upload is the only
-    // large one, and the browser resizes it to a 200x200 JPEG first, so ~30KB in practice)
+    // Reject oversized payloads before anything parses them. Two uploads are larger: the avatar
+    // (the browser makes it a 200x200 JPEG, ~30KB in practice) and an inquiry with up to 3 images
+    // of at most 1MB each (base64 in JSON, still well under Lambda's 6MB request limit)
     if (event.body) {
       const bytes = event.isBase64Encoded ? Math.ceil(event.body.length * 3 / 4) : Buffer.byteLength(event.body);
-      if (bytes > (path === '/api/me/avatar' ? 1_500_000 : 1_000_000)) {
+      const limit = { '/api/me/avatar': 1_500_000, '/api/contact': 4_500_000 }[path] ?? 1_000_000;
+      if (bytes > limit) {
         return respond(413, { message: 'データが大きすぎます' });
       }
     }
@@ -2728,6 +2799,7 @@ export const handler = async (event) => {
       body: body ?? {},
       query: event.queryStringParameters ?? {},
       claims: await authenticate(cookies, setCookies),
+      setCookies,
     };
     for (const [m, re, fn] of routes) {
       if (m !== method) continue;

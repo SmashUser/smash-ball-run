@@ -959,7 +959,7 @@
     privacy: ['プライバシーポリシー', '<p>{{site}} が利用者の情報をどのように扱うかを説明します。当サイトは、サービスの提供に必要な最小限の情報だけを扱う方針で運営しています。</p>', [
       ['取得する情報', `<ul class="dots">
         <li><b>Discordから受け取る情報</b>：ユーザーID、ユーザー名、表示名、アイコンです（ユーザー名は運営者の管理用で、公開されません）。また、利用対象のDiscordサーバーに参加しているかを確認するため、ログインのたびに参加サーバーの一覧を参照します（確認にのみ使い、保存しません）。メールアドレスやメッセージは受け取りません。</li>
-        <li><b>利用者が入力した情報</b>：プレイヤー名、プロフィール、使用キャラクター、フレンドコード、TwitterのユーザーID、日記・コメント・紹介文、対戦の報告内容、お問い合わせの内容など。</li>
+        <li><b>利用者が入力した情報</b>：プレイヤー名、プロフィール、使用キャラクター、フレンドコード、TwitterのユーザーID、日記・コメント・紹介文、対戦の報告内容、お問い合わせの内容（添付した画像を含む）など。</li>
         <li><b>サービスの利用に伴う情報</b>：対戦履歴、レート、ポイント、アクセス時のIPアドレスやブラウザの種類など（不正利用の防止のため一時的に記録します）。</li>
         <li>以前メールアドレスで登録した方は、Discordと連携するまでの間だけ、そのメールアドレスを保存しています。連携した時点でサイトから削除します。</li>
       </ul>`],
@@ -973,7 +973,7 @@
       ['Cookieについて', '<p>ログイン状態を保つため、Cookieを使用します。ログイン用のCookieはJavaScriptから読み取れない設定にし、他サイトから送信されないよう制限しています。広告やアクセス解析を目的としたCookieは使用していません。</p>'],
       ['第三者への提供', '<p>法令に基づく場合を除き、利用者の情報を第三者に提供することはありません。サービスの運営には Amazon Web Services（AWS）を利用しており、情報はAWSのサーバーに保存されます。</p>'],
       ['安全管理', '<p>通信はすべて暗号化（HTTPS）しています。不正アクセスへの対策として、アクセス制限や攻撃の検知を行っています。</p>'],
-      ['アカウントの削除', '<p>アカウントの削除をご希望の場合は、<a href="#/contact">お問い合わせページ</a>からご連絡ください。削除すると、プロフィール・日記などの情報は削除されます。対戦相手の記録の整合性を保つため、過去の対戦履歴、対戦ルームのコメント、他のプレイヤーに書いた紹介文、お問い合わせの内容は残ります。</p><p>Discordの設定画面で当サイトとの連携を解除することもできます（解除しても当サイトのアカウントは削除されません）。</p>'],
+      ['アカウントの削除', '<p>マイページの一番下にある「退会する」から、いつでもアカウントを削除できます。削除すると、プロフィール・日記などの情報は削除されます。対戦相手の記録の整合性を保つため、過去の対戦履歴、対戦ルームのコメント、他のプレイヤーに書いた紹介文、お問い合わせの内容は残ります。</p><p>Discordの設定画面で当サイトとの連携を解除することもできます（解除しても当サイトのアカウントは削除されません）。</p>'],
       ['改定', '<p>本ポリシーは必要に応じて改定することがあります。改定後の内容は、本ページに掲示した時点で効力を持ちます。</p>'],
     ]],
     rules: ['対戦ルール', '<p>レーティング対戦のルールです。対戦前に必ずお読みください。ルールを守らないプレイヤーは規制の対象になります。</p>', [
@@ -1036,7 +1036,7 @@
       ['公開される情報・されない情報', `<ul class="dots">
         <li><b>誰でも見られる</b>：プレイヤー名、プロフィール画像、プロフィール文、TwitterのユーザーID（設定した場合）、レート、対戦成績・対戦履歴、紹介文、キャラ投票の結果、対戦設定（接続環境など）、対戦ルームの内容（使用キャラ、拒否ステージ、対戦の状態、対戦前後のコメント、ルームのコメント）</li>
         <li><b>対戦相手だけが見られる</b>：ゲーム内の部屋ID（対戦する部屋に入るための情報）</li>
-        <li><b>公開されない</b>：DiscordのユーザーID・ユーザー名、スイッチ設定、キャラ対策メモ、お問い合わせの内容</li>
+        <li><b>公開されない</b>：DiscordのユーザーID・ユーザー名、スイッチ設定、キャラ対策メモ、お問い合わせの内容（添付した画像を含む）</li>
       </ul>`],
       ['ログイン状態の保護', '<p>ログイン状態はCookieで保ちます。このCookieは、ページ上のプログラムから読み取れない設定（HttpOnly）、暗号化された通信でしか送られない設定（Secure）、他のサイトからは送られない設定（SameSite）にしています。悪意のあるページがあなたになりすまして操作することを防ぐ仕組み（CSRF対策）も入れています。</p><p>ログイン状態は最長7日で切れ、その後は再度ログインが必要です。ログアウトすると、ブラウザからログイン情報を消し、サーバー側でもそのログインを取り消します。</p>'],
       ['通信と保存データの暗号化', '<p>サイトとの通信はすべてHTTPSで暗号化しています（http:// でアクセスしても、暗号化された通信に切り替わります）。ブラウザのアドレス欄の鍵マークで確認できます。</p><p>データは Amazon Web Services（AWS）の東京リージョン（日本国内）に保存し、保存されたデータも暗号化しています。データベースや画像の置き場所は外から直接アクセスできない設定にし、当サイトのプログラムを通してだけ読み書きできるようにしています。</p>'],
@@ -1052,17 +1052,17 @@
         <li>対戦結果は、双方の報告が一致したときだけレートに反映されます。</li>
       </ul>`],
       ['広告・アクセス解析なし', '<p>広告や、アクセス解析・トラッキングのためのツールやCookieは使っていません。ページの表示に外部のサービス（フォントの配信など）も使っていないため、閲覧の情報が広告会社や解析サービスなどの第三者に送られることはありません（ログインの際にDiscordの画面へ移動するときを除きます）。</p>'],
-      ['プロフィール画像', '<p>プロフィール画像は、お使いの端末上で200×200ピクセルの画像に作り直してから送信します。さらにサーバー側でも、写真に含まれる撮影場所（位置情報）や撮影機器などの情報を取り除いてから公開します。</p>'],
-      ['運営者が扱える情報', '<p>運営者は、お問い合わせや不正利用に対応するため、公開されている情報に加えて、DiscordのユーザーID・ユーザー名、お問い合わせの内容を確認できます。Discordのパスワードやメッセージなど、当サイトが受け取っていない情報は運営者にも見えません。</p>'],
+      ['画像の扱い', '<p>プロフィール画像は、お使いの端末上で200×200ピクセルの画像に作り直してから送信します。さらにサーバー側でも、写真に含まれる撮影場所（位置情報）や撮影機器などの情報を取り除いてから公開します。</p><p>お問い合わせに添付した画像も、同じように端末上で作り直し、位置情報などを取り除いて保存します。添付した画像を見られるのは、送った本人と運営者だけです。公開されることはありません。</p>'],
+      ['運営者が扱える情報', '<p>運営者は、お問い合わせや不正利用に対応するため、公開されている情報に加えて、DiscordのユーザーID・ユーザー名、お問い合わせの内容（添付した画像を含む）を確認できます。Discordのパスワードやメッセージなど、当サイトが受け取っていない情報は運営者にも見えません。</p>'],
       ['記録の保存期間', `<ul class="dots">
         <li>不正利用の調査のため、アクセスの記録（日時、IPアドレス、アクセスしたページ）を2週間保存します。この記録に、ログイン情報や入力した内容は含めていません。</li>
         <li>不具合の調査のため、エラーの記録を1か月保存します。</li>
         <li>障害に備えて、データのバックアップを最大35日分保存しています。</li>
       </ul>`],
-      ['退会・データの削除', '<p>アカウントの削除をご希望の場合は、<a href="#/contact">お問い合わせ</a>からご連絡ください。プロフィール、プロフィール画像、設定などを削除し、Discordアカウントとのつながりも解除します。</p><p>対戦相手の記録の整合性を保つため、過去の対戦履歴、対戦ルームのコメント、他のプレイヤーに書いた紹介文、お問い合わせの内容は残ります。バックアップに残ったデータも、最大35日で消えます。</p>'],
+      ['退会・データの削除', '<p>マイページの一番下にある「退会する」から、いつでも退会できます。プロフィール、プロフィール画像、設定などを削除し、Discordアカウントとのつながりも解除します。</p><p>対戦相手の記録の整合性を保つため、過去の対戦履歴、対戦ルームのコメント、他のプレイヤーに書いた紹介文、お問い合わせの内容は残ります。バックアップに残ったデータも、最大35日で消えます。</p>'],
       ['運営の方針', `<ul class="dots">
         <li>運営費は運営者が負担しています。広告の掲載、有料の機能、利用者の情報の販売や第三者への提供は行いません。</li>
-        <li>サービスを終了する場合は、30日以上前にサイト上でお知らせします。終了後は、保存しているデータを30日以内にすべて削除します。</li>
+        <li>サービスを終了する場合は、1週間以上前にサイト上でお知らせします。終了後は、保存しているデータを30日以内にすべて削除します。</li>
         <li>情報の漏えいなど、利用者に影響のある問題が起きた場合は、判明してから原則3日以内にサイト上で公表し、影響を受けた方にお知らせします。</li>
       </ul>`],
       ['困ったときは', '<p>身に覚えのない操作がある、なりすましを見つけたなど、安全に関わることは<a href="#/contact">お問い合わせ</a>からご連絡ください。</p>'],
@@ -1070,7 +1070,7 @@
     privacy: ['プライバシーポリシー', '<p>{{site}} が利用者の情報をどのように扱うかを説明します。当サイトは、サービスの提供に必要な最小限の情報だけを扱う方針で運営しています。</p>', [
       ['取得する情報', `<ul class="dots">
         <li><b>Discordから受け取る情報</b>：Discordの「identify」権限で受け取れるユーザー情報です。このうち保存するのは、ユーザーID、ユーザー名、表示名だけです。メールアドレス、参加しているサーバー、フレンド、メッセージは受け取りません。</li>
-        <li><b>利用者が入力した情報</b>：プレイヤー名、プロフィール、プロフィール画像、TwitterのユーザーID、拒否ステージ、スイッチ設定、キャラ対策メモ、対戦ルームのコメント、紹介文・キャラ投票、対戦の報告内容、お問い合わせの内容など。</li>
+        <li><b>利用者が入力した情報</b>：プレイヤー名、プロフィール、プロフィール画像、TwitterのユーザーID、拒否ステージ、スイッチ設定、キャラ対策メモ、対戦ルームのコメント、紹介文・キャラ投票、対戦の報告内容、お問い合わせの内容（添付した画像を含む）など。</li>
         <li><b>サービスの利用に伴う情報</b>：対戦履歴、レート、アクセスの記録（日時、IPアドレス、アクセスしたページ）。</li>
       </ul>`],
       ['利用目的', `<ul class="dots">
@@ -1079,12 +1079,12 @@
         <li>荒らし・複数アカウント・不正行為の防止と対応</li>
         <li>お問い合わせへの対応、サービスの改善</li>
       </ul>`],
-      ['公開される情報', '<p>プレイヤー名、プロフィール画像、プロフィール、TwitterのユーザーID（設定した場合）、レート、対戦成績・対戦履歴、紹介文、キャラ投票の結果、対戦設定（接続環境など）、対戦ルームの内容（使用キャラ、拒否ステージ、対戦前後のコメント、ルームのコメント）は、誰でも閲覧できます。ゲーム内の部屋IDは、対戦相手にだけ表示されます。</p><p>DiscordのユーザーID・ユーザー名、スイッチ設定、キャラ対策メモ、お問い合わせの内容は公開されません。</p>'],
+      ['公開される情報', '<p>プレイヤー名、プロフィール画像、プロフィール、TwitterのユーザーID（設定した場合）、レート、対戦成績・対戦履歴、紹介文、キャラ投票の結果、対戦設定（接続環境など）、対戦ルームの内容（使用キャラ、拒否ステージ、対戦前後のコメント、ルームのコメント）は、誰でも閲覧できます。ゲーム内の部屋IDは、対戦相手にだけ表示されます。</p><p>DiscordのユーザーID・ユーザー名、スイッチ設定、キャラ対策メモ、お問い合わせの内容（添付した画像を含む）は公開されません。</p>'],
       ['Cookieについて', '<p>ログイン状態を保つため、Cookieを使用します。ログイン用のCookieはページ上のプログラムから読み取れない設定にし、他サイトから送信されないよう制限しています。広告やアクセス解析を目的としたCookieは使用していません。</p>'],
       ['第三者への提供', '<p>法令に基づく場合を除き、利用者の情報を第三者に提供することはありません。</p><p>サービスの運営には Amazon Web Services（AWS）を利用しており、情報はAWSの東京リージョンのサーバーに保存されます。ログインにはDiscordを利用します。</p>'],
       ['保存期間', '<p>アカウントの情報は、アカウントを削除するまで保存します。アクセスの記録は2週間、エラーの記録は1か月、バックアップは最大35日で自動的に消えます。</p>'],
       ['安全管理', '<p>通信の暗号化、保存データの暗号化、不正アクセスへの対策などを行っています。具体的な内容は<a href="#/security">安全への取り組み</a>をご覧ください。</p>'],
-      ['アカウントの削除', '<p>アカウントの削除をご希望の場合は、<a href="#/contact">お問い合わせページ</a>からご連絡ください。削除すると、プロフィール・プロフィール画像・設定などの情報は削除され、Discordアカウントとのつながりも解除されます。対戦相手の記録の整合性を保つため、過去の対戦履歴、対戦ルームのコメント、他のプレイヤーに書いた紹介文、お問い合わせの内容は残ります。バックアップに残ったデータも最大35日で消えます。</p><p>Discordの「ユーザー設定」→「承認済みアプリ」から、当サイトとの連携を解除することもできます（解除しても当サイトのアカウントは削除されません）。</p>'],
+      ['アカウントの削除', '<p>マイページの一番下にある「退会する」から、いつでもアカウントを削除できます。削除すると、プロフィール・プロフィール画像・設定などの情報は削除され、Discordアカウントとのつながりも解除されます。対戦相手の記録の整合性を保つため、過去の対戦履歴、対戦ルームのコメント、他のプレイヤーに書いた紹介文、お問い合わせの内容は残ります。バックアップに残ったデータも最大35日で消えます。</p><p>Discordの「ユーザー設定」→「承認済みアプリ」から、当サイトとの連携を解除することもできます（解除しても当サイトのアカウントは削除されません）。</p>'],
       ['保有している情報の開示・訂正・削除などのご請求', '<p>当サイトが保有しているご本人の情報について、開示・訂正・追加・削除・利用停止などをご希望の場合は、ご本人のアカウントでログインした状態で<a href="#/contact">お問い合わせ</a>からご連絡ください。</p><p>ログイン中のアカウントからの送信をもって本人確認とし、内容を確認のうえ、マイページの「お問い合わせ履歴」でご回答します。手数料はかかりません。</p>'],
       ['改定', '<p>本ポリシーは必要に応じて改定することがあります。改定後の内容は、本ページに掲示した時点で効力を持ちます。</p>'],
     ]],
@@ -1124,7 +1124,7 @@
       ['「結果が不一致の対戦ルームがあります」と表示されます。', '<p>相手と報告が食い違っているルームがあります。表示されたリンクからルームを開き、コメント欄で相手と確認して押し直してください。解決しない場合はお問い合わせからご連絡ください。</p>'],
       ['相手が「対戦中止」を押しました。', '<p>対戦していない場合は、あなたも「対戦中止」を押すとルームが終了します。対戦した場合は結果を報告してください（報告が食い違っている間は、ルームは終了しません）。</p>'],
       ['レートやランキングはリセットされますか？', '<p>シーズンの区切りで、全員のレートが1500に戻り、ランキングもリセットされることがあります。区切りの日時が決まったら、レーティング対戦ページでお知らせします。</p>'],
-      ['退会したいです。', '<p><a href="#/contact">お問い合わせ</a>から「その他」を選んでご連絡ください。プロフィールやプロフィール画像などを削除します。あわせて、Discordの「ユーザー設定」→「承認済みアプリ」から当サイトとの連携を解除できます。</p>'],
+      ['退会したいです。', '<p>マイページの一番下にある「退会する」から退会できます。プロフィールやプロフィール画像などを削除します。結果が確定していない対戦ルームがある間は退会できません。あわせて、Discordの「ユーザー設定」→「承認済みアプリ」から当サイトとの連携を解除できます。</p><p>退会したアカウントは元に戻せません。同じDiscordアカウントで登録し直した場合は、新しいアカウントとして最初から（レート1500）になります。</p>'],
     ]],
   };
   const toDoc = ([title, lead, secs]) => ({ title, lead, sections: secs.map(([h, html]) => ({ h, html })) });
@@ -2020,21 +2020,99 @@
         <p>${esc(siteName())} に関するお問い合わせは、下記のフォームからお願いします。</p>
         <p class="lead-red">送信前に、<a href="#/faq">Q＆Aページ</a>に同じ内容がないかご確認ください。</p>
         <p>運営から返信する場合は、マイページの「お問い合わせ履歴」でお知らせします（すべてのお問い合わせに返信するとは限りません）。</p>
+        <div class="alert alert-blue">スマメイトの機能や画面で、まだ再現できていない部分の画像をお持ちの方は、「画像・資料の提供」から画像を添付して送っていただけると助かります。<br>「スマメイトにこんな機能が欲しかった」というご要望も、「要望」からお気軽にお寄せください。</div>
         ${me ? `<form id="contact-form" data-style="margin-top:16px">
-          <div class="field"><label for="c-type">問い合わせ内容</label><select id="c-type" name="type"><option>不具合報告</option><option>悪質利用者の報告</option><option>要望</option><option>その他</option></select>
-            <div class="hint">悪質利用者の報告は、ルーム番号や相手のユーザー名など、詳細な情報を記載してください。</div></div>
+          <div class="field"><label for="c-type">問い合わせ内容</label><select id="c-type" name="type">${Object.keys(CONTACT_HINTS).map((t) => `<option>${t}</option>`).join('')}</select>
+            <div class="hint" id="c-hint">${CONTACT_HINTS['不具合報告']}</div></div>
           <div class="field"><label for="c-body">内容</label><textarea id="c-body" name="body" maxlength="3000" required data-style="min-height:160px"></textarea></div>
+          <div class="field"><label>画像（任意・${CONTACT_MAX_IMAGES}枚まで）</label>
+            <div class="att-list" id="c-atts"></div>
+            <label class="btn-line att-add" id="c-add">＋ 画像を追加<input type="file" id="c-files" accept="image/*" multiple></label>
+            <div class="hint">スクリーンショットなどを添付できます。添付した画像を見られるのは運営だけで、公開されることはありません。</div></div>
           <button class="btn btn-green">送信</button></form>` : `<p>お問い合わせにはログインが必要です。</p><div data-style="max-width:300px;display:grid;gap:6px">${loginButtons()}</div>`}`,
     });
     bindLoginButtons(app);
-    $('#contact-form')?.addEventListener('submit', async (ev) => {
+    const form = $('#contact-form');
+    if (!form) return;
+    form.elements.type.addEventListener('change', (e) => { $('#c-hint').textContent = CONTACT_HINTS[e.target.value]; });
+    let atts = [];
+    const renderAtts = () => {
+      $('#c-atts').innerHTML = atts.map((src, i) => `<div class="att"><img src="${src}" alt=""><button type="button" class="att-del" data-i="${i}" aria-label="${i + 1}枚目を外す">×</button></div>`).join('');
+      $('#c-add').hidden = atts.length >= CONTACT_MAX_IMAGES;
+    };
+    $('#c-atts').addEventListener('click', (e) => {
+      const b = e.target.closest('.att-del');
+      if (b) { atts.splice(Number(b.dataset.i), 1); renderAtts(); }
+    });
+    $('#c-files').addEventListener('change', async (e) => {
+      const files = [...e.target.files];
+      e.target.value = '';
+      if (atts.length + files.length > CONTACT_MAX_IMAGES) toast(`画像は${CONTACT_MAX_IMAGES}枚までです`);
+      for (const f of files.slice(0, CONTACT_MAX_IMAGES - atts.length)) {
+        try { atts.push(await toJpeg(f)); } catch (err) { toast(err.message); }
+      }
+      renderAtts();
+    });
+    form.addEventListener('submit', async (ev) => {
       ev.preventDefault();
       await withBusy(ev.submitter, async () => {
-        await api('/api/contact', { method: 'POST', body: formData(ev.target) });
-        ev.target.reset();
+        await api('/api/contact', { method: 'POST', body: { ...formData(form), images: atts } });
+        form.reset();
+        $('#c-hint').textContent = CONTACT_HINTS['不具合報告'];
+        atts = [];
+        renderAtts();
         toast('送信しました。ご協力ありがとうございます。');
       });
     });
+  }
+  const CONTACT_MAX_IMAGES = 3;
+  const CONTACT_HINTS = {
+    不具合報告: '起きたことと、お使いの端末・ブラウザを書いてください。画面の画像があると助かります。',
+    悪質利用者の報告: '悪質利用者の報告は、ルーム番号や相手のユーザー名など、詳細な情報を記載してください。',
+    要望: '「スマメイトにこんな機能が欲しかった」なども歓迎です。',
+    '画像・資料の提供': 'スマメイトの画面のスクリーンショットなどを添付してください。どの画面の画像か一言添えていただけると助かります。',
+    その他: '',
+  };
+  // Screenshots are re-encoded on the device: JPEG, at most 1280px wide and about 12M pixels, and
+  // under the 1MB the server accepts (lower quality first, then smaller). This also drops metadata.
+  function toJpeg(file) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(img.src);
+        let scale = Math.min(1, 1280 / img.width, 16000 / img.height, Math.sqrt(12e6 / (img.width * img.height)));
+        let quality = 0.88;
+        for (;;) {
+          const c = document.createElement('canvas');
+          c.width = Math.max(1, Math.round(img.width * scale));
+          c.height = Math.max(1, Math.round(img.height * scale));
+          const g = c.getContext('2d');
+          g.fillStyle = '#fff';
+          g.fillRect(0, 0, c.width, c.height);
+          g.drawImage(img, 0, 0, c.width, c.height);
+          const url = c.toDataURL('image/jpeg', quality);
+          if (url.length * 0.75 <= 950_000) { resolve(url); return; }
+          if (scale < 0.2) { reject(new Error(`「${file.name}」は大きすぎるため添付できません`)); return; }
+          if (quality > 0.7) quality -= 0.1; else scale *= 0.8;
+        }
+      };
+      img.onerror = () => { URL.revokeObjectURL(img.src); reject(new Error(`「${file.name}」を読み込めませんでした。画像ファイルを選んでください`)); };
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
+  // Attached images are private: fetched through the API on demand and shown as data: URLs.
+  // Tapping one opens it full size with a save link.
+  const attThumbs = (c) => (c.images ? `<div class="att-list" data-att="${esc(c.id)}">${Array.from({ length: c.images }, (_, i) => `<button type="button" class="att" data-i="${i}" aria-label="添付画像${i + 1}">…</button>`).join('')}</div>` : '');
+  function loadAttachments(root) {
+    root.querySelectorAll('[data-att]').forEach((box) => box.querySelectorAll('.att').forEach(async (b) => {
+      const n = Number(b.dataset.i) + 1;
+      try {
+        const { image } = await api(`/api/contacts/${box.dataset.att}/images/${b.dataset.i}`);
+        b.innerHTML = `<img src="${esc(image)}" alt="">`;
+        b.addEventListener('click', () => openModal(`添付画像 ${n}`, `<a class="btn btn-sm" download="contact-${esc(box.dataset.att)}-${n}.jpg" href="${esc(image)}">画像を保存</a><div class="att-full"><img src="${esc(image)}" alt="添付画像${n}"></div>`));
+      } catch { b.textContent = '読み込めません'; }
+    }));
   }
 
   // Append-only record of what the admin account did, so a compromise is traceable
@@ -2045,6 +2123,7 @@
     'user.enable': '利用停止を解除',
     'user.disable': '利用停止',
     'user.delete': 'ユーザーを削除',
+    'user.withdraw': '本人が退会',
     'contact.delete': 'お問い合わせを削除',
     'contact.reply': 'お問い合わせに返信',
     'season.set': 'シーズンを変更',
@@ -2062,7 +2141,7 @@
     if (e.action === 'season.end') return `第${esc(e.season)}期${e.name ? `「${esc(e.name)}」` : ''}：${e.endsAt ? esc(jstEnd(e.endsAt)) : '終了予定日の表示を解除'}`;
     if (e.target) {
       const name = e.targetName ? esc(e.targetName) : '(名前なし)';
-      const extra = e.action === 'user.delete' ? `　<span class="muted">データ${e.removed ?? 0}件を削除</span>` : '';
+      const extra = ['user.delete', 'user.withdraw'].includes(e.action) ? `　<span class="muted">データ${e.removed ?? 0}件を削除</span>` : '';
       return `対象：${userLink(e.target, name)}${extra}`;
     }
     return '';
@@ -2096,10 +2175,11 @@
         crumb: [crumbLink('#/admin', '管理ページ'), 'お問い合わせ一覧'],
         title: 'お問い合わせ一覧',
         single: contacts.length ? contacts.map((c) => `<div class="cmt"><div class="cmt-head"><span class="tag tag-live">${esc(c.type)}</span>${c.replies?.length ? '<span class="tag tag-done">返信済</span>' : ''}${userLink(c.userId, c.name)}<span class="meta">${fullDate(c.at)}<br>${esc(c.email)}</span></div>
-          <div class="cmt-body">${esc(c.body)}</div>${replyList(c.replies)}
+          <div class="cmt-body">${esc(c.body)}</div>${attThumbs(c)}${replyList(c.replies)}
           <form class="reply-form" data-reply="${esc(c.id)}"><textarea name="text" maxlength="2000" required placeholder="返信（送信者のマイページ「お問い合わせ履歴」に表示されます）"></textarea>
             <div class="row" data-style="margin-top:4px"><button class="btn btn-sm">返信する</button><span class="spacer"></span><button type="button" class="btn btn-gray btn-sm" data-del="${esc(c.id)}">削除</button></div></form></div>`).join('') : '<p class="empty">お問い合わせはありません</p>',
       });
+      loadAttachments(app);
       app.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', (ev) => withBusy(ev.target, async () => {
         render(await api(`/api/admin/contacts/${b.dataset.del}`, { method: 'DELETE' }));
       })));
@@ -2123,8 +2203,9 @@
       title: 'お問い合わせ履歴',
       single: `<p class="small muted">送信したお問い合わせと、運営からの返信が表示されます。新しいお問い合わせは<a href="#/contact">お問い合わせページ</a>からどうぞ。</p>
         ${contacts.length ? contacts.map((c) => `<div class="cmt"><div class="cmt-head"><span class="tag tag-live">${esc(c.type)}</span>${c.unread ? '<span class="new">new!</span>' : ''}<span class="meta">${fullDate(c.at)}</span></div>
-          <div class="cmt-body">${esc(c.body)}</div>${replyList(c.replies) || '<p class="small muted" data-style="margin:6px 0 0">返信はまだありません</p>'}</div>`).join('') : '<p class="empty">お問い合わせはありません</p>'}`,
+          <div class="cmt-body">${esc(c.body)}</div>${attThumbs(c)}${replyList(c.replies) || '<p class="small muted" data-style="margin:6px 0 0">返信はまだありません</p>'}</div>`).join('') : '<p class="empty">お問い合わせはありません</p>'}`,
     });
+    loadAttachments(app);
     if (contacts.some((c) => c.unread)) {
       await api('/api/me/contacts/read', { method: 'POST' }).catch(() => {});
       me.unreadReplies = 0;
@@ -2271,7 +2352,8 @@
         ${box('レーティング対戦', ratingSummary(u, data.history), 'rate-box')}`,
       main: `${box('プロフィール', u.bio ? `<div class="prose">${esc(u.bio)}</div>` : '<span class="muted">プロフィールは未設定です</span>')}
         ${graphFirst ? graphBox + histBox : histBox + graphBox}`,
-    });
+    }) + (own && !me.isAdmin ? '<div class="withdraw"><button type="button" class="btn btn-red" id="withdraw">退会する</button></div>' : '');
+    $('#withdraw')?.addEventListener('click', openWithdraw);
     function renderHist() {
       const items = data.history.slice(page * PER, page * PER + PER);
       // Original layout: [No. / match no / my char] [opponent name / char] [result] [delta]
@@ -2288,6 +2370,30 @@
       pager($('#hpager'), data.history.length, PER, page, (p) => { page = p; renderHist(); });
     }
     renderHist();
+  }
+
+  // 退会: explains what goes and what stays, and needs an explicit tick before the request is sent
+  function openWithdraw() {
+    openModal('退会する', `<p>退会すると、次の情報が削除されます。元に戻すことはできません。</p>
+      <ul><li>プロフィール、プロフィール画像、拒否ステージなどの設定、キャラ対策メモ</li><li>Discordアカウントとのつながり</li></ul>
+      <p>対戦相手の記録の整合性を保つため、過去の対戦履歴、対戦ルームのコメント、他のプレイヤーに書いた紹介文、お問い合わせの内容は残ります。</p>
+      <p>同じDiscordアカウントで登録し直した場合は、新しいアカウントとして最初から（レート1500）になります。</p>
+      <label class="wd-check"><input type="checkbox" id="wd-ok"> 上記を確認しました</label>
+      <div class="row2"><button type="button" class="btn-line" data-cancel>やめる</button><button type="button" class="btn btn-red" id="wd-go" disabled>退会する</button></div>`, (body, close) => {
+      const go = body.querySelector('#wd-go');
+      body.querySelector('#wd-ok').addEventListener('change', (e) => { go.disabled = !e.target.checked; });
+      body.querySelector('[data-cancel]').addEventListener('click', close);
+      go.addEventListener('click', async () => {
+        go.disabled = true;
+        // Close first in either case: the message toast sits below the dialog layer
+        try { await api('/api/me?confirm=withdraw', { method: 'DELETE' }); } catch (e) { close(); toast(e.message); return; }
+        close();
+        me = null;
+        renderAccount();
+        location.hash = '#/';
+        toast('退会しました。ご利用ありがとうございました。');
+      });
+    });
   }
 
   // Achievements = top-4 tournament finishes

@@ -98,6 +98,7 @@ function sbrSite(): SiteConfig {
     hideClosed: true,
     // Rooms are open to view, so room comments are a public board rather than private messages
     publicRooms: true,
+    lockedDownDomain: true,
     alertEmail: pub.alertEmail ?? ctx('alertEmail'),
     alertTag: 'smashballrun',
   };
