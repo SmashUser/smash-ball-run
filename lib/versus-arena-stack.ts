@@ -46,9 +46,11 @@ export interface SiteConfig {
   cookieKeyParam: string;
   /**
    * Domain of the non-deliverable address a Discord account's sign-in name carries, e.g.
-   * "@users.example.invalid". Part of every existing account's name: never change it on a live site.
+   * "@users.example.invalid". New accounts get this one. To change it on a live site, move the
+   * old value to legacyDiscordEmailDomains so the accounts created under it keep signing in.
    */
   discordEmailDomain: string;
+  legacyDiscordEmailDomains?: string[];
   /**
    * Shown as 準備中 on this site, beyond the ones closed everywhere (tournaments, gacha,
    * minimum). Features: 'diaries', 'free', 'links', 'medals'. Page elements: 'points', 'friendCode',
@@ -67,6 +69,10 @@ export interface SiteConfig {
   noindex?: boolean;
   /** The domain sends and receives no mail (SPF/DMARC/null MX against spoofing) and only Amazon may issue its certificates (CAA) */
   lockedDownDomain?: boolean;
+  /** API capacity: requests per second at the API stage (burst is twice this; default 50) and the
+   *  concurrency reserved for the API function (default 20). The reservation is also its cap. */
+  apiRequestsPerSecond?: number;
+  apiConcurrency?: number;
   /** Which set of default page texts the site shows ('sbr' = the public rated-matches site) */
   edition?: string;
   /** Leave unavailable features out of the menus altogether instead of greying them out (準備中) */
@@ -223,7 +229,9 @@ export class VersusArenaStack extends cdk.Stack {
     // ---------- API (served same-origin under /api/* through CloudFront + WAF) ----------
     const api = new HttpApi(this, 'HttpApi', { createDefaultStage: true });
     const stage = api.defaultStage!.node.defaultChild as cdk.aws_apigatewayv2.CfnStage;
-    stage.defaultRouteSettings = { throttlingBurstLimit: 100, throttlingRateLimit: 50 };
+    // Every open page polls every 5–7 s, so 50 requests/s is roughly 200 players at once
+    const apiRate = props.site.apiRequestsPerSecond ?? 50;
+    stage.defaultRouteSettings = { throttlingBurstLimit: apiRate * 2, throttlingRateLimit: apiRate };
     // Access log for abuse investigation. Deliberately no headers, cookies, query strings or
     // request bodies (so session tokens can never end up in the log). IP is personal data:
     // keep it short-lived.
@@ -431,9 +439,12 @@ function handler(event) {
     // Who may use the admin page. No default, so a misconfigured deploy locks the admin page
     // rather than handing it to someone.
     const { adminSub, discordEmailDomain } = props.site;
+    const legacyDomains = props.site.legacyDiscordEmailDomains ?? [];
     if (!adminSub) throw new Error('site.adminSub is required (the admin account\'s Cognito sub)');
-    if (!/^@[a-z0-9.-]+\.invalid$/.test(discordEmailDomain ?? '')) {
-      throw new Error('site.discordEmailDomain must look like "@users.example.invalid" (and never change on a live site)');
+    for (const d of [discordEmailDomain, ...legacyDomains]) {
+      if (!/^@[a-z0-9.-]+\.invalid$/.test(d ?? '')) {
+        throw new Error(`site.discordEmailDomain / legacyDiscordEmailDomains must look like "@users.example.invalid" (got ${d})`);
+      }
     }
 
     // Cognito operations that can create accounts or mint sessions live here, away from the
@@ -450,6 +461,7 @@ function handler(event) {
         USER_POOL_ID: userPool.userPoolId,
         CLIENT_ID: client.userPoolClientId,
         DISCORD_EMAIL_DOMAIN: discordEmailDomain,
+        DISCORD_EMAIL_LEGACY_DOMAINS: legacyDomains.join(','),
       },
       logGroup: new logs.LogGroup(this, 'PrivilegedLogs', {
         retention: logs.RetentionDays.ONE_MONTH,
@@ -471,9 +483,9 @@ function handler(event) {
       // Ordinary requests finish in well under a second; the season roll-over walks every
       // player, so allow up to just below API Gateway's 30-second limit.
       timeout: cdk.Duration.seconds(29),
-      // No reserved concurrency: this account's total Lambda concurrency is 10, which already
-      // caps the blast radius if someone floods the API by hitting execute-api directly.
-      // If that account quota is ever raised, set a reservation here to keep the cap.
+      // Reserved concurrency: guaranteed capacity that other functions in the account cannot take,
+      // and a cap on the blast radius if someone floods the API by hitting execute-api directly
+      reservedConcurrentExecutions: props.site.apiConcurrency ?? 20,
       environment: {
         TABLE_NAME: table.tableName,
         AVATAR_BUCKET: avatarBucket.bucketName,
@@ -498,6 +510,7 @@ function handler(event) {
         HIDE_ADMIN_MATCHES: props.site.hideAdminMatches ? '1' : '',
         PUBLIC_ROOMS: props.site.publicRooms ? '1' : '',
         DISCORD_EMAIL_DOMAIN: discordEmailDomain,
+        DISCORD_EMAIL_LEGACY_DOMAINS: legacyDomains.join(','),
         ALERT_TAG: props.site.alertTag ?? 'site',
       },
       logGroup: new logs.LogGroup(this, 'ApiLogs', {
@@ -514,8 +527,9 @@ function handler(event) {
     avatarBucket.grantPut(apiFn, 'avatars/*');
     avatarBucket.grantDelete(apiFn, 'avatars/*'); // account deletion removes the public image
     contactBucket.grantPut(apiFn, 'contact/*');
-    contactBucket.grantRead(apiFn, 'contact/*');
     contactBucket.grantDelete(apiFn, 'contact/*');
+    // Reading single files is all it needs (no listing, no bucket metadata)
+    apiFn.addToRolePolicy(new iam.PolicyStatement({ actions: ['s3:GetObject'], resources: [contactBucket.arnForObjects('contact/*')] }));
     // Read the Discord client secret (SecureString with the AWS-managed SSM key)
     apiFn.addToRolePolicy(new iam.PolicyStatement({
       actions: ['ssm:GetParameter'],
@@ -552,7 +566,8 @@ function handler(event) {
           `Contact: ${siteUrl}#/contact`,
           'Expires: 2027-10-26T00:00:00Z',
           'Preferred-Languages: ja, en',
-          `Policy: ${siteUrl}#/terms`,
+          `Policy: ${siteUrl}#/security`,
+          `Canonical: ${siteUrl}.well-known/security.txt`,
           '',
         ].join('\n')),
         // Crawlers may read everything, except on a site kept out of search engines

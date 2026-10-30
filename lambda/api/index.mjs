@@ -238,12 +238,20 @@ async function ensureProfile(ctx) {
   Object.assign(profile, { gsi1pk: 'USER', gsi1sk: profile.createdAt, nameKey: nameKey(profile.name) });
   // Test accounts stay out of the ranking and search for real players
   if (isTestAccount(ctx)) profile.test = true;
+  // A deleted or suspended account never gets a profile again, even from a request that was
+  // already past authenticate() when the account was removed (checked again atomically below)
+  if (await get(`USER#${uid}`, 'BANNED')) throw new HttpError(401, 'ログインしてください');
+  profile.memberNo = takesMemberNo(ctx) ? await nextNumber('USER') : 0;
   try {
-    profile.memberNo = takesMemberNo(ctx) ? await nextNumber('USER') : 0;
-    await put(profile, 'attribute_not_exists(pk)');
+    await transact([
+      { ConditionCheck: { Key: { pk: `USER#${uid}`, sk: 'BANNED' }, ConditionExpression: 'attribute_not_exists(pk)' } },
+      { Put: { Item: profile, ConditionExpression: 'attribute_not_exists(pk)' } },
+    ]);
     return profile;
   } catch (e) {
-    if (e.name === 'ConditionalCheckFailedException') return getProfile(uid);
+    const [banned, exists] = (e.CancellationReasons ?? []).map((r) => r.Code === 'ConditionalCheckFailed');
+    if (banned) throw new HttpError(401, 'ログインしてください');
+    if (exists) return getProfile(uid);
     throw e;
   }
 }
@@ -258,7 +266,8 @@ const publicUser = (p) =>
     maxRating: p.maxRating ?? p.rating,
     wins: p.wins,
     losses: p.losses,
-    memberNo: p.memberNo,
+    // 0 (admins, hand-made accounts) is never shown, so it is not sent either
+    memberNo: p.memberNo || null,
     // Shown as a badge beside the name, so players can tell who runs the site (unless the site hides it)
     admin: !HIDE_ADMIN_BADGE && isAdminSub(p.userId),
     symbol: p.symbol ?? '',
@@ -342,6 +351,7 @@ async function updateStages(ctx) {
       TableName: TABLE,
       Key: { pk: p.pk, sk: 'PROFILE' },
       UpdateExpression: 'SET rejectStages = :s, rejectByFighter = :b',
+      ConditionExpression: 'attribute_exists(pk)',
       ExpressionAttributeValues: { ':s': stages, ':b': byFighter },
       ReturnValues: 'ALL_NEW',
     }),
@@ -374,13 +384,17 @@ async function audit(ctx, action, detail = {}) {
     ...detail,
     ttl: epoch() + 365 * 86400,
   });
-  // Best effort: the trail is the record, the mail is just the heads-up
+  // Best effort: the trail is the record, the mail is just the heads-up. A member's own
+  // withdrawal is not an admin action, so its mail says so.
   if (ALERT_TOPIC_ARN) {
     const lines = Object.entries(detail).map(([k, v]) => `${k}: ${v}`).join('\n');
+    const self = action === 'user.withdraw';
     await sns.send(new PublishCommand({
       TopicArn: ALERT_TOPIC_ARN,
-      Subject: `[${ALERT_TAG}] 管理操作: ${action}`,
-      Message: `操作: ${action}\n実行者: ${who?.name ?? ''} (${ctx.claims.sub})\n日時: ${at}\n${lines}\n\n身に覚えがない場合は、Discordのパスワードと2要素認証をすぐに確認してください。`,
+      Subject: self ? `[${ALERT_TAG}] 退会: ${detail.targetName ?? ''}` : `[${ALERT_TAG}] 管理操作: ${action}`,
+      Message: self
+        ? `利用者が自分で退会しました。\n日時: ${at}\n${lines}`
+        : `操作: ${action}\n実行者: ${who?.name ?? ''} (${ctx.claims.sub})\n日時: ${at}\n${lines}\n\n身に覚えがない場合は、Discordのパスワードと2要素認証をすぐに確認してください。`,
     })).catch(() => {});
   }
 }
@@ -496,6 +510,8 @@ async function updateMe(ctx) {
       // (fighter is not set here: it comes from opponents' votes, see refreshVotedFighter)
       UpdateExpression: 'SET nameKey = :nk, gsi1pk = :ug, gsi1sk = if_not_exists(gsi1sk, :now), #n = :n, bio = :b, friendCode = :fc, preComment = :pre, postComment = :post, allowIntro = :ai, symbol = :sy, #av = :av, #sr = :sr, #rm = :rm, #cn = :cn, #st = :st, #ac = :ac, #tw = :tw',
       ExpressionAttributeNames: { '#n': 'name', '#av': 'allowVideo', '#sr': 'showRate', '#rm': 'rematch', '#cn': 'conn', '#st': 'stream', '#ac': 'account', '#tw': 'twitterId' },
+      // Never recreates a profile that was deleted while this request was running
+      ConditionExpression: 'attribute_exists(pk)',
       ExpressionAttributeValues: {
         ':nk': nameKey(name), ':ug': 'USER', ':now': nowIso(), ':n': name, ':b': bio, ':fc': friendCode, ':pre': preComment, ':post': postComment, ':ai': allowIntro, ':sy': symbol,
         ':av': allowVideo, ':sr': showRate, ':rm': prefs.rematch, ':cn': prefs.conn, ':st': prefs.stream, ':ac': prefs.account, ':tw': twitterId,
@@ -553,7 +569,7 @@ async function updateSwitches(ctx) {
   for (const [theirs, mine] of entries) switches[fighterOf(theirs)] = fighterOf(mine);
   const r = await ddb.send(new UpdateCommand({
     TableName: TABLE, Key: { pk: p.pk, sk: 'PROFILE' },
-    UpdateExpression: 'SET switches = :s', ExpressionAttributeValues: { ':s': switches }, ReturnValues: 'ALL_NEW',
+    UpdateExpression: 'SET switches = :s', ConditionExpression: 'attribute_exists(pk)', ExpressionAttributeValues: { ':s': switches }, ReturnValues: 'ALL_NEW',
   }));
   return privateUser(r.Attributes);
 }
@@ -770,7 +786,7 @@ async function ranking(ctx) {
     KeyConditionExpression: 'rankpk = :r',
     ExpressionAttributeValues: { ':r': 'RANK' },
     ScanIndexForward: false,
-    Limit: fighter ? 500 : Math.min(Number(ctx.query.limit) || 100, 200),
+    Limit: fighter ? 500 : Math.min(Math.max(Math.trunc(Number(ctx.query.limit)) || 100, 1), 200),
   };
   if (fighter) {
     params.FilterExpression = 'fighter = :f';
@@ -813,6 +829,8 @@ async function activeCurrent(uid) {
 
 // "おまかせ" is a pick like a fighter: the game's random select chooses the actual fighter
 const OMAKASE = 'おまかせ';
+// The starting name of a Discord account without a display name, until the member sets one
+const NAME_UNSET = 'ユーザー名を設定してください';
 const fighterOrOmakase = (v) => (v === OMAKASE ? OMAKASE : fighterOf(v));
 // A switch never lands on the lobby fighter itself or on its echo fighter
 const ECHO_PAIRS = [['ピーチ', 'デイジー'], ['マルス', 'ルキナ'], ['サムス', 'ダークサムス'], ['ピット', 'ブラックピット'],
@@ -855,12 +873,14 @@ async function enqueue(ctx) {
   const p = await ensureProfile(ctx);
   const current = await activeCurrent(p.userId);
   if (current) return { state: 'matched', matchId: current.matchId };
+  // Opponents look for this name in the game, so a placeholder is not good enough
+  if (p.name === NAME_UNSET) throw new HttpError(400, 'マイページの「プロフィールを編集する」から、ユーザー名を設定してください');
   const fighter = ctx.body.fighter === OMAKASE ? OMAKASE : fighterOf(ctx.body.fighter, { optional: true }) || p.fighter;
   if (!fighter) throw new HttpError(400, '1戦目に使用するキャラを選択してください');
   // Remember it so the lobby pre-selects the same character next time
   await ddb.send(new UpdateCommand({
     TableName: TABLE, Key: { pk: p.pk, sk: 'PROFILE' },
-    UpdateExpression: 'SET lastFighter = :f', ExpressionAttributeValues: { ':f': fighter },
+    UpdateExpression: 'SET lastFighter = :f', ConditionExpression: 'attribute_exists(pk)', ExpressionAttributeValues: { ':f': fighter },
   }));
   const rateLimit = Number(ctx.body.rateLimit) || 0; // 0 = anyone, else max rating difference
   if (![0, 50, 100, 150, 200, 250, 300, 350, 400].includes(rateLimit)) throw new HttpError(400, 'レート制限の値が不正です');
@@ -1001,14 +1021,18 @@ function assertCanRead(ctx, m) {
   throw new HttpError(403, 'この対戦の参加者ではありません');
 }
 
-// What a spectator sees: no way into the in-game room, nothing about switch settings
+// What a spectator sees: no way into the in-game room, nothing about switch settings, and of
+// each player's reject stages only the ones that apply against this opponent's fighter
 async function publicMatchView(m) {
   const { room, ...view } = strip(m);
   if (view.correctedBy) view.correctedBy = true;
   const profiles = await Promise.all(view.players.map((u) => getProfile(u)));
+  const info = view.playerInfo;
   view.playerInfo = Object.fromEntries(view.players.map((u, i) => {
-    const { friendCode, lobbyFighter, switchedFrom, ...p } = view.playerInfo[u] ?? {};
-    return [u, { ...p, rating: profiles[i]?.rating ?? p.rating, name: profiles[i]?.name ?? p.name }];
+    const { friendCode, lobbyFighter, switchedFrom, rejectByFighter, rejectStages, ...p } = info[u] ?? {};
+    const vs = info[view.players.find((x) => x !== u)]?.fighter;
+    const rejects = (vs && rejectByFighter?.[vs]) || rejectStages || [];
+    return [u, { ...p, rejectStages: rejects, rejectByFighter: {}, rating: profiles[i]?.rating ?? p.rating, name: profiles[i]?.name ?? p.name }];
   }));
   return view;
 }
@@ -1021,12 +1045,14 @@ async function getMatch(ctx, id) {
     return publicMatchView(raw);
   }
   const m = strip(raw);
-  // The waiting host's polling keeps the room joinable
+  // The waiting host's polling keeps the room joinable (and pushes back its expiry, so a long
+  // wait at a quiet hour does not lose the room)
   if (m.status === 'waiting' && m.hostId === ctx.claims.sub) {
     await ddb.send(new UpdateCommand({
       TableName: TABLE, Key: { pk: 'OPEN', sk: `MATCH#${id}` },
-      UpdateExpression: 'SET lastSeen = :t', ConditionExpression: 'attribute_exists(pk)',
-      ExpressionAttributeValues: { ':t': nowMs() },
+      UpdateExpression: 'SET lastSeen = :t, #ttl = :x', ConditionExpression: 'attribute_exists(pk)',
+      ExpressionAttributeNames: { '#ttl': 'ttl' },
+      ExpressionAttributeValues: { ':t': nowMs(), ':x': epoch() + 3600 },
     })).catch(() => {});
   }
   m.roomPassword = ROOM_PASSWORD;
@@ -1111,7 +1137,7 @@ async function recordResult(uid, m, result) {
 async function reportMatch(ctx, id) {
   const uid = requireUser(ctx);
   const result = ctx.body.result;
-  if (result !== 'win' && result !== 'lose') throw new HttpError(400, 'result は win か lose です');
+  if (result !== 'win' && result !== 'lose') throw new HttpError(400, '「勝ち」か「負け」を選んでください');
   const m = await loadMatch(id);
   if (!m.players.includes(uid)) throw new HttpError(403, 'この対戦の参加者ではありません');
   // Rooms cancelled under the old one-sided 対戦中止 can still be settled by agreeing reports;
@@ -1124,7 +1150,7 @@ async function reportMatch(ctx, id) {
   const since = m.matchedAt ? Date.now() - new Date(m.matchedAt).getTime() : Infinity;
   if (since < MIN_MATCH_MS) {
     const wait = Math.ceil((MIN_MATCH_MS - since) / 1000);
-    throw new HttpError(409, `対戦開始から間もないため報告できません。あと約${wait}秒お待ちください`);
+    throw new HttpError(409, `マッチングから2分間は報告できません。あと約${wait}秒お待ちください`);
   }
   return recordResult(uid, m, result);
 }
@@ -1133,7 +1159,10 @@ async function reportMatch(ctx, id) {
 async function settleMatch(m, winner, { expectStatus, by } = {}) {
   const id = m.matchId;
   const loser = m.players.find((p) => p !== winner);
-  const [pw, pl] = await Promise.all([getProfile(winner), getProfile(loser)]);
+  // A player who has withdrawn since has no profile: the other side's result still counts,
+  // against the name and rating the room recorded
+  const gone = (uid) => ({ userId: uid, name: m.playerInfo?.[uid]?.name ?? '', rating: m.playerInfo?.[uid]?.rating ?? INITIAL_RATING, gone: true });
+  const [pw, pl] = (await Promise.all([getProfile(winner), getProfile(loser)])).map((p, i) => p ?? gone(i ? loser : winner));
   // Snapshot taken when each player entered the room. Using live ratings would let a player
   // sit on an unreported loss, move their rating elsewhere, and report at a better exchange rate.
   const rw = m.playerInfo?.[winner]?.rating ?? pw.rating;
@@ -1176,14 +1205,12 @@ async function settleMatch(m, winner, { expectStatus, by } = {}) {
         ExpressionAttributeValues: { ':d': 'done', ':w': winner, ':delta': delta, ':season': season, ':t': at, ':expect': expectStatus, ...(by ? { ':by': by } : {}) },
       },
     },
-    rate(pw, delta, 'wins', pl.userId),
-    rate(pl, -delta, 'losses', pw.userId),
-    hist(pw, pl, 'win', delta),
-    hist(pl, pw, 'lose', -delta),
+    ...(pw.gone ? [] : [rate(pw, delta, 'wins', pl.userId), hist(pw, pl, 'win', delta)]),
+    ...(pl.gone ? [] : [rate(pl, -delta, 'losses', pw.userId), hist(pl, pw, 'lose', -delta)]),
   ]);
   // Only clear pointers to *this* match (a reporter may already be in a new room)
   await releaseCurrent(m.players, id);
-  if (delta > 0) await awardMedals(winner, pw.rating + delta);
+  if (delta > 0 && !pw.gone) await awardMedals(winner, pw.rating + delta);
 }
 
 // ---------- Admin: correct a rated match result ----------
@@ -1216,10 +1243,13 @@ async function adminSetResult(ctx, id) {
       ExpressionAttributeValues: { ':p': `USER#${w}`, ':s': 'HIST#', ':m': id },
     });
     const sk = histSk[0]?.sk ?? (m.histAt ? `HIST#${m.histAt}#${id}` : `HIST#${m.finishedAt}#${id}`);
+    // A player who has withdrawn since has nothing left to revert (and ADD must not recreate a profile)
+    const [hasW, hasL] = (await Promise.all([getProfile(w), getProfile(l)])).map(Boolean);
     const undo = (uid, d, field, pts) => ({
       Update: {
         Key: { pk: `USER#${uid}`, sk: 'PROFILE' },
         UpdateExpression: `ADD rating :d, ${field} :minus, points :pts`,
+        ConditionExpression: 'attribute_exists(pk)',
         ExpressionAttributeValues: { ':d': d, ':minus': -1, ':pts': -pts },
       },
     });
@@ -1234,8 +1264,8 @@ async function adminSetResult(ctx, id) {
         },
       },
       // A result capped by the former same-opponent limit paid no points, so there are none to take back
-      undo(w, -m.delta, 'wins', m.capped ? 0 : 5),
-      undo(l, m.delta, 'losses', m.capped ? 0 : 3),
+      ...(hasW ? [undo(w, -m.delta, 'wins', m.capped ? 0 : 5)] : []),
+      ...(hasL ? [undo(l, m.delta, 'losses', m.capped ? 0 : 3)] : []),
       { Delete: { Key: { pk: `USER#${w}`, sk } } },
       { Delete: { Key: { pk: `USER#${l}`, sk } } },
     ]);
@@ -1299,13 +1329,14 @@ async function setMatchRoom(ctx, id) {
   if (m.status === 'waiting') {
     await ddb.send(new UpdateCommand({
       TableName: TABLE, Key: { pk: 'OPEN', sk: `MATCH#${id}` },
-      UpdateExpression: 'SET roomCode = :c, lastSeen = :t', ConditionExpression: 'attribute_exists(pk)',
-      ExpressionAttributeValues: { ':c': roomId, ':t': nowMs() },
+      UpdateExpression: 'SET roomCode = :c, lastSeen = :t, #ttl = :x', ConditionExpression: 'attribute_exists(pk)',
+      ExpressionAttributeNames: { '#ttl': 'ttl' },
+      ExpressionAttributeValues: { ':c': roomId, ':t': nowMs(), ':x': epoch() + 3600 },
     })).catch(() => {});
   }
   await ddb.send(new UpdateCommand({
     TableName: TABLE, Key: { pk: `USER#${uid}`, sk: 'PROFILE' },
-    UpdateExpression: 'SET lastRoomId = :r', ExpressionAttributeValues: { ':r': roomId },
+    UpdateExpression: 'SET lastRoomId = :r', ConditionExpression: 'attribute_exists(pk)', ExpressionAttributeValues: { ':r': roomId },
   }));
   return { ...strip(r.Attributes), roomPassword: ROOM_PASSWORD };
 }
@@ -1892,19 +1923,34 @@ function jpegSize(buf) {
   return null;
 }
 
-// Drop every metadata segment (EXIF incl. GPS location, XMP, comments: APP1..APP15, COM) before
-// an image becomes public. The page re-encodes images anyway; this also covers direct uploads.
+// Rebuild a JPEG from its image segments only: every APPn block (JFIF, EXIF incl. GPS location,
+// XMP, ICC…) and comment is dropped wherever it sits, including between progressive scans, and
+// anything after the end-of-image marker (e.g. an appended video) is cut off. Returns null unless
+// the file is a complete JPEG with at least one scan. The page re-encodes images anyway; this
+// also covers direct uploads.
 function stripJpegMetadata(buf) {
+  if (buf.length < 4 || buf[0] !== 0xff || buf[1] !== 0xd8) return null;
   const parts = [buf.subarray(0, 2)];
   let i = 2;
-  while (i + 4 <= buf.length) {
+  let scans = 0;
+  while (i + 1 < buf.length) {
     if (buf[i] !== 0xff) return null;
     const marker = buf[i + 1];
-    if (marker === 0xda) { parts.push(buf.subarray(i)); return Buffer.concat(parts); } // image data follows
+    if (marker === 0xff) { i++; continue; } // fill byte
+    if (marker === 0xd9) { parts.push(buf.subarray(i, i + 2)); return scans ? Buffer.concat(parts) : null; }
+    if (i + 4 > buf.length) return null;
     const len = buf.readUInt16BE(i + 2);
     if (len < 2 || i + 2 + len > buf.length) return null;
-    if (!((marker >= 0xe1 && marker <= 0xef) || marker === 0xfe)) parts.push(buf.subarray(i, i + 2 + len));
+    if (!((marker >= 0xe0 && marker <= 0xef) || marker === 0xfe)) parts.push(buf.subarray(i, i + 2 + len));
     i += 2 + len;
+    if (marker === 0xda) {
+      // Entropy-coded data runs to the next marker that is neither a stuffed 0xFF00 nor a restart marker
+      scans++;
+      let j = i;
+      while (j + 1 < buf.length && !(buf[j] === 0xff && buf[j + 1] !== 0x00 && !(buf[j + 1] >= 0xd0 && buf[j + 1] <= 0xd7))) j++;
+      parts.push(buf.subarray(i, j));
+      i = j;
+    }
   }
   return null;
 }
@@ -1931,6 +1977,7 @@ async function uploadAvatar(ctx) {
     TableName: TABLE,
     Key: { pk: p.pk, sk: 'PROFILE' },
     UpdateExpression: 'SET avatarV = :v',
+    ConditionExpression: 'attribute_exists(pk)',
     ExpressionAttributeValues: { ':v': nowMs() },
     ReturnValues: 'ALL_NEW',
   }));
@@ -1964,11 +2011,19 @@ async function postContact(ctx) {
   const images = Array.isArray(ctx.body.images) ? ctx.body.images : [];
   if (images.length > CONTACT_MAX_IMAGES) throw new HttpError(400, `添付できる画像は${CONTACT_MAX_IMAGES}枚までです`);
   const bufs = images.map((v, i) => contactImage(v, i + 1));
-  const recent = await query({
-    KeyConditionExpression: 'pk = :p AND begins_with(sk, :s)', FilterExpression: '#at >= :since', ExpressionAttributeNames: { '#at': 'at' },
-    ExpressionAttributeValues: { ':p': p.pk, ':s': 'CONTACT#', ':since': new Date(Date.now() - 86400_000).toISOString() },
-  });
-  if (recent.length >= CONTACT_PER_DAY) throw new HttpError(429, `お問い合わせは1日${CONTACT_PER_DAY}件までです。時間をおいてお送りください`);
+  // Today's count (Japan time) is taken atomically before anything is stored, so inquiries sent
+  // in parallel cannot get past the cap
+  const day = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+  try {
+    await ddb.send(new UpdateCommand({
+      TableName: TABLE, Key: { pk: p.pk, sk: `CONTACTDAY#${day}` },
+      UpdateExpression: 'SET #ttl = :ttl ADD n :one', ConditionExpression: 'attribute_not_exists(n) OR n < :max',
+      ExpressionAttributeNames: { '#ttl': 'ttl' }, ExpressionAttributeValues: { ':one': 1, ':max': CONTACT_PER_DAY, ':ttl': epoch() + 2 * 86400 },
+    }));
+  } catch (e) {
+    if (e.name === 'ConditionalCheckFailedException') throw new HttpError(429, `お問い合わせは1日${CONTACT_PER_DAY}件までです。時間をおいてお送りください`);
+    throw e;
+  }
   const at = nowIso();
   const id = shortId();
   // Files first, so a saved inquiry never points at images that are not there
@@ -2272,12 +2327,12 @@ async function withdrawMe(ctx) {
   const uid = requireUser(ctx);
   if (ctx.query.confirm !== 'withdraw') throw new HttpError(400, '退会の確認ができませんでした。もう一度お試しください');
   if (isAdminSub(uid)) throw new HttpError(400, '管理者のアカウントは退会できません');
-  const [current, mismatches, recent] = await Promise.all([
+  const [current, mismatches, unsettled] = await Promise.all([
     activeCurrent(uid),
     query({ KeyConditionExpression: 'pk = :p AND begins_with(sk, :s)', ExpressionAttributeValues: { ':p': `USER#${uid}`, ':s': 'MISMATCH#' } }),
-    query({ IndexName: 'gsi1', KeyConditionExpression: 'gsi1pk = :p', ExpressionAttributeValues: { ':p': 'MATCH' }, ScanIndexForward: false, Limit: 200 }),
+    unsettledRoomOf(uid),
   ]);
-  if (current || mismatches.length || recent.some((m) => m.status === 'playing' && m.players?.includes(uid))) {
+  if (current || mismatches.length || unsettled) {
     throw new HttpError(409, '結果が確定していない対戦ルームがあります。対戦の結果が確定してから退会してください');
   }
   const { prof, removed } = await removeAccount(uid, uid);
@@ -2286,10 +2341,31 @@ async function withdrawMe(ctx) {
   return { ok: true };
 }
 
+// A room of this player that is still waiting for a report (the player may already have reported
+// and been released from it). Looks through the latest 2,000 rated rooms; an older unsettled room
+// is still handled safely: settleMatch() counts the result for the remaining player only.
+async function unsettledRoomOf(uid) {
+  let startKey;
+  for (let page = 0; page < 10; page++) {
+    const r = await ddb.send(new QueryCommand({
+      TableName: TABLE, IndexName: 'gsi1', KeyConditionExpression: 'gsi1pk = :p', ScanIndexForward: false, Limit: 200,
+      FilterExpression: '#s = :playing AND contains(players, :u)', ExpressionAttributeNames: { '#s': 'status' },
+      ExpressionAttributeValues: { ':p': 'MATCH', ':playing': 'playing', ':u': uid }, ExclusiveStartKey: startKey,
+    }));
+    if (r.Items?.length) return r.Items[0];
+    startKey = r.LastEvaluatedKey;
+    if (!startKey) return null;
+  }
+  return null;
+}
+
 // Everything an account owns except its match history, then its sign-in identity
 async function removeAccount(uid, by) {
   const prof = await getProfile(uid);
-  // Data first, and paged: if this fails halfway the account still exists in the admin list,
+  // The deleted marker goes first: from here on authenticate() refuses the account and
+  // ensureProfile() will not recreate a profile, even for a request already in flight.
+  await put({ pk: `USER#${uid}`, sk: 'BANNED', deleted: true, at: nowIso(), by });
+  // Then the data, paged: if this fails halfway the account still exists in the admin list,
   // so the delete can simply be run again. Match history stays so opponents' records hold.
   const own = [];
   let startKey;
@@ -2300,7 +2376,7 @@ async function removeAccount(uid, by) {
       ExpressionAttributeValues: { ':p': `USER#${uid}` },
       ExclusiveStartKey: startKey,
     }));
-    own.push(...(r.Items ?? []).filter((it) => !it.sk.startsWith('HIST#')));
+    own.push(...(r.Items ?? []).filter((it) => !it.sk.startsWith('HIST#') && it.sk !== 'BANNED'));
     startKey = r.LastEvaluatedKey;
   } while (startKey);
   for (let i = 0; i < own.length; i += 20) {
@@ -2316,9 +2392,6 @@ async function removeAccount(uid, by) {
     if (e.name !== 'UserNotFoundException') throw e;
   });
   if (prof?.discordId) await del(`DISCORD#${prof.discordId}`, 'LINK');
-  // A deleted account's ID token stays valid for up to an hour; without this marker the next
-  // request with it would recreate an empty profile (authenticate() refuses marked accounts)
-  await put({ pk: `USER#${uid}`, sk: 'BANNED', deleted: true, at: nowIso(), by });
   return { prof, removed: own.length };
 }
 
@@ -2524,7 +2597,9 @@ const discordEmail = (discordId) => {
   if (!DISCORD_EMAIL_DOMAIN) throw new Error('DISCORD_EMAIL_DOMAIN is not set');
   return `discord-${discordId}${DISCORD_EMAIL_DOMAIN}`;
 };
-function isDiscordEmail(v) { return Boolean(DISCORD_EMAIL_DOMAIN) && String(v ?? '').toLowerCase().endsWith(DISCORD_EMAIL_DOMAIN); }
+// Accounts created under an earlier domain of this site keep working (new ones get the current domain)
+const DISCORD_EMAIL_DOMAINS = [DISCORD_EMAIL_DOMAIN, ...String(process.env.DISCORD_EMAIL_LEGACY_DOMAINS || '').toLowerCase().split(',')].filter(Boolean);
+function isDiscordEmail(v) { const s = String(v ?? '').toLowerCase(); return DISCORD_EMAIL_DOMAINS.some((d) => s.endsWith(d)); }
 // ---------- Discord sign-in (OAuth2, "identify" scope only, no e-mail) ----------
 // Discord is not OIDC, so Cognito can't federate it directly. After verifying the user
 // with Discord we map the Discord ID to a password-less Cognito user and mint Cognito
@@ -2665,12 +2740,16 @@ async function discordCallback(event, cookies) {
   // New accounts: the Discord account must be at least 30 days old (sub-account / spam guard)
   const createdMs = Number(BigInt(du.id) >> 22n) + 1420070400000;
   if (Date.now() - createdMs < 30 * 86400_000) return fail('young');
-  // First time: confirm the terms before creating the account
-  const name = String(du.global_name || du.username || 'player').slice(0, 20);
+  // First time: confirm the terms before creating the account. The public name starts as the
+  // Discord display name; the Discord username is never used (it is not shown publicly)
+  const name = String(du.global_name || NAME_UNSET).slice(0, 20);
   // One-shot: the matching row is deleted when redeemed, so a captured cookie is useless afterwards
   const nonce = randomBytes(18).toString('base64url');
   await put({ pk: `PEND#${nonce}`, sk: 'META', at: nowIso(), ttl: epoch() + 900 });
-  const pend = await sign('dpend', { id: du.id, name, username: du.username || '', avatar: du.avatar || '', nonce, exp: Date.now() + 15 * 60_000 });
+  const pend = await sign('dpend', {
+    id: du.id, name, globalName: du.global_name || '', label: du.global_name || du.username || '',
+    username: du.username || '', avatar: du.avatar || '', nonce, exp: Date.now() + 15 * 60_000,
+  });
   return redirect(`${SITE_URL}#/discord-signup`, [clearCookie(C_DOAUTH), cookie(C_DPEND, pend, { maxAge: 900 })]);
 }
 
@@ -2704,7 +2783,7 @@ async function discordComplete(event, cookies, b) {
     TableName: TABLE, Key: { pk: `USER#${sub}`, sk: 'PROFILE' },
     UpdateExpression: 'SET discordId = :d', ExpressionAttributeValues: { ':d': p.id },
   }));
-  await saveDiscordName(sub, { username: p.username, global_name: p.name });
+  await saveDiscordName(sub, { username: p.username, global_name: p.globalName ?? p.name });
   return { body: { ok: true }, cookies: [clearCookie(C_DPEND), ...sessionCookies(t)] };
 }
 
@@ -2766,7 +2845,8 @@ export const handler = async (event) => {
     if (method === 'GET' && path === '/api/auth/discord/callback') return await discordCallback(event, cookies);
     if (method === 'GET' && path === '/api/auth/discord/pending') {
       const p = await unsign('dpend', cookies[C_DPEND]);
-      return respond(200, p ? { name: p.name } : { name: null });
+      // Shown only to the person signing up ("register with Discord account X")
+      return respond(200, p ? { name: p.label || p.name } : { name: null });
     }
     if (method === 'POST' && path === '/api/auth/discord/complete') {
       checkAnonCsrf(event);
@@ -2809,7 +2889,7 @@ export const handler = async (event) => {
         return respond(200, await fn(ctx, ...match.slice(1)));
       }
     }
-    return respond(404, { message: 'Not found' });
+    return respond(404, { message: 'ページが見つかりません' });
   } catch (e) {
     if (e instanceof HttpError) return respond(e.status, { message: e.message });
     if (e.name === 'ConditionalCheckFailedException' || e.name === 'TransactionCanceledException') {

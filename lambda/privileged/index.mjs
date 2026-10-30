@@ -25,10 +25,12 @@ const ClientId = process.env.CLIENT_ID;
 
 // Every account is Discord-native, so a pool username always looks like
 // "discord-<Discord ID>@users.<site>.invalid" (the domain is set per site).
-const DISCORD_EMAIL_DOMAIN = (process.env.DISCORD_EMAIL_DOMAIN || '').toLowerCase();
+// Accounts created under an earlier domain of the site (DISCORD_EMAIL_LEGACY_DOMAINS) keep working.
+const DOMAINS = [process.env.DISCORD_EMAIL_DOMAIN, ...String(process.env.DISCORD_EMAIL_LEGACY_DOMAINS || '').split(',')]
+  .map((d) => String(d || '').toLowerCase()).filter(Boolean);
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 // Without a configured domain nothing matches, so every operation is refused
-const USERNAME_RE = DISCORD_EMAIL_DOMAIN ? new RegExp(`^discord-\\d{5,25}${escapeRe(DISCORD_EMAIL_DOMAIN)}$`) : /(?!)/;
+const USERNAME_RE = DOMAINS.length ? new RegExp(`^discord-\\d{5,25}(?:${DOMAINS.map(escapeRe).join('|')})$`) : /(?!)/;
 // Cognito subs as issued by this pool.
 const UID_RE = /^[0-9a-fA-F-]{20,64}$/;
 

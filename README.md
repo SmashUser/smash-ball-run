@@ -8,7 +8,7 @@
 
 ## 構成
 
-すべて Amazon Web Services（東京リージョン）上で動いています。インフラは AWS CDK（TypeScript）で定義しています。
+Amazon Web Services 上で動いています。データとサーバー側の処理は東京リージョンにあり、CloudFront と WAF は AWS の仕様上、グローバル（証明書と WAF の設定は米国東部リージョン）で動きます。インフラは AWS CDK（TypeScript）で定義しています。
 
 | 役割 | サービス |
 |---|---|
@@ -26,7 +26,7 @@
 - `lib/versus-arena-stack.ts` … サイト本体のインフラ定義（CloudFront、API、DynamoDB、Cognito、アラームなど）
 - `lib/waf-stack.ts` … WAF の定義
 - `lambda/api/index.mjs` … API の処理（マッチング、対戦結果、プロフィールなど）
-- `lambda/privileged/index.mjs` … アカウント作成・セッション発行だけを行う、インターネットから到達できない関数
+- `lambda/privileged/index.mjs` … アカウントの作成・削除やセッション発行など、決められた Cognito の管理操作だけを行う、インターネットから到達できない関数
 - `lambda/presignup/index.mjs` … サーバー側で作るアカウント以外の新規登録をすべて拒否する関数
 - `web/` … 画面（HTML / JavaScript / CSS）
 

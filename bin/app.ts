@@ -27,6 +27,8 @@ interface SiteDef {
   secretFile: string;
   domainName?: string;
   hostedZoneId?: string;
+  /** Stacks that serve real players cannot be deleted by accident (CloudFormation termination protection) */
+  protect?: boolean;
   site: SiteConfig;
 }
 
@@ -40,6 +42,7 @@ const sites: SiteDef[] = [
     stackId: 'Smashballrun',
     wafStackId: 'SmashballrunWaf',
     secretFile: '.origin-secret-public',
+    protect: true,
     domainName: pub.domainName || undefined,
     hostedZoneId: pub.hostedZoneId || undefined,
     site: sbrSite(),
@@ -62,6 +65,9 @@ const sites: SiteDef[] = [
       // Behaves like the site after opening
       hideAdminMatches: false,
       noindex: true,
+      // Test traffic only: the default capacity
+      apiRequestsPerSecond: undefined,
+      apiConcurrency: undefined,
       alertEmail: undefined,
       alertTag: 'smashballrun-stg',
     },
@@ -89,7 +95,9 @@ function sbrSite(): SiteConfig {
     discordGuildId: pub.discordGuildId ?? '',
     discordSecretParam: '/smashballrun/discord-client-secret',
     cookieKeyParam: '/smashballrun/cookie-signing-key',
-    discordEmailDomain,
+    // The site's own sign-in domain; accounts made under an earlier one keep working
+    discordEmailDomain: pub.discordEmailDomain ?? discordEmailDomain,
+    legacyDiscordEmailDomains: pub.legacyDiscordEmailDomains ?? [],
     adminSub: pub.adminSub ?? '',
     hideAdminBadge: true,
     // Until the site opens; set "hideAdminMatches": false in cdk.json at release
@@ -99,6 +107,9 @@ function sbrSite(): SiteConfig {
     // Rooms are open to view, so room comments are a public board rather than private messages
     publicRooms: true,
     lockedDownDomain: true,
+    // Launch-day headroom: about 600 players polling at once (see versus-arena-stack.ts)
+    apiRequestsPerSecond: 150,
+    apiConcurrency: 100,
     alertEmail: pub.alertEmail ?? ctx('alertEmail'),
     alertTag: 'smashballrun',
   };
@@ -114,11 +125,13 @@ for (const s of sites) {
     domainName: s.domainName,
     hostedZoneId: s.hostedZoneId,
     alertEmail: s.site.alertEmail,
+    terminationProtection: s.protect,
   });
   wafs.set(s.stackId, waf);
   new VersusArenaStack(app, s.stackId, {
     env: { account, region },
     crossRegionReferences: true,
+    terminationProtection: s.protect,
     site: s.site,
     webAclArn: waf.webAclArn,
     originSecret: originSecret(s.secretFile),
