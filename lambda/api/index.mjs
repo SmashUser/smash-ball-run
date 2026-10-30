@@ -592,6 +592,7 @@ async function searchUsers(ctx) {
     }));
     for (const p of r.Items ?? []) {
       if (p.test && !isTestAccount(ctx)) continue; // test accounts are listed to test accounts only
+      if (isAdminSub(p.userId)) continue; // the operators are not looked up by name
       if ((p.nameKey ?? nameKey(p.name)).includes(q)) found.push(p);
     }
     startKey = r.LastEvaluatedKey;

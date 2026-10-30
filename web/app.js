@@ -2297,16 +2297,19 @@
       app.innerHTML = layout({ crumb: 'Discordで登録', title: 'Discordで登録', single: '<p>Discordでの認証の有効期限が切れました。もう一度ログイン画面からお試しください。</p><p><a href="#/login">ログイン画面へ</a></p>' });
       return;
     }
+    // Discord sends people back here mid-way: say clearly that one step is left (the header
+    // still shows ログイン＆新規登録 until then, which otherwise looks like a failed sign-in)
     app.innerHTML = layout({
       crumb: 'Discordで登録',
       title: 'Discordで登録',
-      single: boxList('アカウントを作成', `<p>Discordアカウント「<b>${esc(name)}</b>」で登録します。</p>
+      single: `<div class="alert alert-yellow"><b>まだ登録は完了していません。</b><br>下の「利用規約とプライバシーポリシーに同意します」にチェックを入れて、「登録してログイン」を押すと登録が完了します。</div>
+        ${boxList('アカウントを作成', `<p>Discordアカウント「<b>${esc(name)}</b>」で登録します。</p>
         <form id="dsu-form" novalidate>
           <label class="check"><input type="checkbox" id="d-agree"> <a href="#/terms" target="_blank" rel="noopener">利用規約</a>と<a href="#/privacy" target="_blank" rel="noopener">プライバシーポリシー</a>に同意します</label>
           <p class="error-text" id="d-err" hidden></p>
           <button class="btn btn-green btn-block btn-lg">登録してログイン</button>
         </form>
-        <p class="small muted" data-style="margin-top:10px">${discordDataNote()}</p>`),
+        <p class="small muted" data-style="margin-top:10px">${discordDataNote()}</p>`)}`,
     });
     $('#dsu-form').addEventListener('submit', async (ev) => {
       ev.preventDefault();
