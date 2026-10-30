@@ -609,7 +609,7 @@ async function currentSeason() {
   const endsAt = s?.endsAt ?? null;
   return { no: s?.no ?? 1, name: s?.name ?? '', startedAt: s?.startedAt ?? null, endsAt, ended: Boolean(endsAt && Date.now() >= Date.parse(endsAt)) };
 }
-const seasonLabel = (s) => (s.name ? `「${s.name}」` : `第${s.no}期`);
+const seasonLabel = (s) => s.name || `第${s.no}期`;
 
 // The current season's display name (e.g. "PRE STAGE"; empty = 第N期) and, when the end is
 // known, its end date: the rating page announces both

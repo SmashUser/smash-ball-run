@@ -1568,7 +1568,7 @@
     // lobby box only says so (no search form), and the room list stays; a player still in a room
     // from before the end can finish it from here.
     const ended = Boolean(season?.ended);
-    const endedBox = () => `<p class="season-over">${season.name ? `「${esc(season.name)}」` : '今期の'}レーティング対戦は終了しました。</p>
+    const endedBox = () => `<p class="season-over">${season.name ? esc(season.name) : '今期の'}レーティング対戦は終了しました。</p>
       ${me?.currentMatchId ? `<p><a href="#/match/${esc(me.currentMatchId)}">参加中の対戦ルームへ</a></p>` : ''}
       ${me ? '' : `<p>レーティング対戦は、${esc(siteName())} に登録すると参加できます。</p>`}`;
     app.innerHTML = layout({
@@ -1588,8 +1588,8 @@
     }
     if (season?.endsAt) {
       const el = $('#season-end');
-      // A named season reads 「PRE STAGE」の終了予定日は…; an unnamed one 第N期レーティング対戦の…
-      const label = season.name ? `「${esc(season.name)}」` : `第${esc(season.no)}期レーティング対戦`;
+      // A named season reads PRE STAGEの終了予定日は…; an unnamed one 第N期レーティング対戦の…
+      const label = season.name ? esc(season.name) : `第${esc(season.no)}期レーティング対戦`;
       el.innerHTML = `${label}の終了予定日は<br>「${esc(jstEnd(season.endsAt))}」<br>です。`;
       el.hidden = false;
     }
