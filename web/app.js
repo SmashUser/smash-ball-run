@@ -185,7 +185,7 @@
   const NAME_UNSET = 'ユーザー名を設定してください';
   const fighterImg = (f) => {
     const i = window.FIGHTERS.indexOf(f);
-    return i < 0 ? '' : `assets/fighters/${pad2(i + 1)}.png`;
+    return i < 0 ? window.OLD_FIGHTER_IMAGES[f] || '' : `assets/roster/${pad2(i + 1)}.png`;
   };
   // "おまかせ" (the game's random select) shows as a black tile with white text, sized like any fighter image
   const OMAKASE_TILE = '<svg viewBox="0 0 48 24" aria-hidden="true"><text x="24" y="16.2" text-anchor="middle" font-size="10.5" font-weight="700" fill="#fff">おまかせ</text></svg>';
@@ -412,13 +412,18 @@
     renderNotice();
   }
 
-  // The site-wide notice banner is intentionally not shown
-  // The site-wide notice banner is not used; the slot carries the player's own reminder only
-  // (a reply from the operators that has not been opened yet)
+  // The slot under the tabs: the player's own reminder (a reply from the operators that has not been
+  // opened yet), and on the top and rated-match pages, notices posted in the last 24 hours
+  const NEWS_NOTE_MS = 24 * 60 * 60 * 1000;
   function renderNotice() {
-    $('#site-notice').innerHTML = me?.unreadReplies && !location.hash.startsWith('#/mypage/contacts')
+    const hash = location.hash;
+    const fresh = ['', '#', '#/', '#/rate'].includes(hash)
+      ? (SITE.notices || []).filter((n) => n.postedAt && Date.now() - Date.parse(n.postedAt) < NEWS_NOTE_MS)
+      : [];
+    $('#site-notice').innerHTML = (me?.unreadReplies && !hash.startsWith('#/mypage/contacts')
       ? '<div class="alert alert-green reply-note">運営からお問い合わせへの返信があります。<a href="#/mypage/contacts">お問い合わせ履歴を見る</a></div>'
-      : '';
+      : '')
+      + fresh.map((n) => `<div class="alert alert-yellow news-note">新しいお知らせがあります。<br><a href="#/news/${esc(n.id)}">${fillText(n.title)}</a></div>`).join('');
   }
 
   // ---------- Pages ----------
@@ -1617,7 +1622,8 @@
     let polling = null;
     const idle = () => {
       if (polling) { clearInterval(polling); polling = null; }
-      let firstFighter = me.lastFighter || me.fighter || '';
+      // (a name no longer on the roster, e.g. the old single Mii fighter, has to be chosen again)
+      let firstFighter = [me.lastFighter, me.fighter].find((f) => f === 'おまかせ' || window.FIGHTERS.includes(f)) || '';
       q.innerHTML = `
         <h3 class="sub-head">1戦目使用キャラ</h3><button type="button" class="pick-btn" id="first-fighter">${esc(firstFighter || '選択してください')}</button>
         <button type="button" class="pick-btn" id="switch-open">⇄ スイッチ設定(<span id="switch-count">${Object.keys(me.switches || {}).length}</span>／50)</button>
@@ -1890,7 +1896,8 @@
         <div id="editor"></div>
         <p data-style="margin-top:30px"><button class="btn btn-outline btn-block" id="list" data-style="color:#333;border-color:#ccc">入力した対策メモを見る</button></p>`,
     });
-    const memoOf = (i) => memos.find((m) => Number(m.idx) === i);
+    // By name: list positions moved when the Mii fighter became three
+    const memoOf = (i) => memos.find((m) => m.fighter === window.FIGHTERS[i]);
     function edit(i) {
       cur = i;
       const f = window.FIGHTERS[i];

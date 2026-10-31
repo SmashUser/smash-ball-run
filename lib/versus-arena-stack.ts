@@ -59,6 +59,9 @@ export interface SiteConfig {
   closed?: string[];
   /** Cognito sub(s) of the admin(s), comma-separated. A value matching nobody leaves the admin page locked. */
   adminSub: string;
+  /** Verification environments: every account signed in with Discord is an admin too
+   *  (the scripted @example.com check accounts stay ordinary members) */
+  discordAdmins?: boolean;
   /** Do not mark the admin with a badge on profiles */
   hideAdminBadge?: boolean;
   /** Before opening: games between admins take no match number and are listed to admins only */
@@ -506,6 +509,7 @@ function handler(event) {
         PRIV_FUNCTION: privFn.functionName,
         // Only these Cognito users (subs, comma-separated) can use the admin page
         ADMIN_SUB: adminSub,
+        DISCORD_ADMINS: props.site.discordAdmins ? '1' : '',
         HIDE_ADMIN_BADGE: props.site.hideAdminBadge ? '1' : '',
         HIDE_ADMIN_MATCHES: props.site.hideAdminMatches ? '1' : '',
         PUBLIC_ROOMS: props.site.publicRooms ? '1' : '',

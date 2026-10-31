@@ -62,6 +62,8 @@ const sites: SiteDef[] = [
       // Shares the public site's Discord application and cookie key; sign-up markers are single-use
       // rows in each site's own table, so a cookie from one site is useless on the other
       adminSub: 'unset-staging',
+      // Whoever signs in with Discord here gets the admin page (test data only)
+      discordAdmins: true,
       // Behaves like the site after opening
       hideAdminMatches: false,
       noindex: true,

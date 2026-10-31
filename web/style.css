@@ -1076,9 +1076,11 @@ a { color: #303ca8; }
 .reply-form { margin-top: 8px; }
 .reply-form textarea { min-height: 70px; }
 /* The notice slot's own frame is for the (unused) site-wide banner; the reply reminder brings its own */
-#site-notice:has(.reply-note) { background: none; border: 0; padding: 0; }
-.reply-note { margin: 0; }
+#site-notice:has(.reply-note, .news-note) { background: none; border: 0; padding: 0; }
+.reply-note, .news-note { margin: 0; }
 .reply-note a { font-weight: 700; margin-left: 6px; }
+.news-note a { font-weight: 700; }
+#site-notice .alert + .alert { margin-top: 8px; }
 /* 更新履歴 */
 .upd-list { list-style: none; margin: 10px 0 0; padding: 0; border-top: 1px solid #ddd; }
 .upd-list li { padding: 12px 4px; border-bottom: 1px solid #ddd; }

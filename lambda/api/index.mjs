@@ -187,7 +187,7 @@ function nameKey(name) {
 // hand-made accounts (test accounts) get member number 0, which is never shown, and a room
 // with no Discord account in it gets no match number.
 const isDiscordAccount = (ctx) => isDiscordEmail(ctx.claims?.email);
-const takesMemberNo = (ctx) => isDiscordAccount(ctx) && !isAdminSub(ctx.claims.sub);
+const takesMemberNo = (ctx) => isDiscordAccount(ctx) && !isAdmin(ctx);
 // Accounts the operator creates by hand for automated checks (e-mail @example.com). They only
 // ever match each other, and their rooms are listed only to them, so a check run on the live
 // site never lands in a real player's room or clutters the public list.
@@ -310,8 +310,9 @@ function compatible(a, b) {
 // Fields only the owner sees (reject stages reach opponents through the match room only)
 const privateUser = (p) => ({ ...publicUser(p), rejectStages: p.rejectStages ?? [], rejectByFighter: p.rejectByFighter ?? {}, friendCode: p.friendCode ?? '', points: p.points ?? 0, lastRoomId: p.lastRoomId ?? '', lastFighter: p.lastFighter ?? '', switches: p.switches ?? {} });
 
-// The roster is fixed: anything else would end up in opponents' permanent match history
-const FIGHTERS = ['マリオ', 'ドンキーコング', 'リンク', 'サムス', 'ダークサムス', 'ヨッシー', 'カービィ', 'フォックス', 'ピカチュウ', 'ルイージ', 'ネス', 'キャプテン・ファルコン', 'プリン', 'ピーチ', 'デイジー', 'クッパ', 'アイスクライマー', 'シーク', 'ゼルダ', 'ドクターマリオ', 'ピチュー', 'ファルコ', 'マルス', 'ルキナ', 'こどもリンク', 'ガノンドロフ', 'ミュウツー', 'ロイ', 'クロム', 'Mr.ゲーム&ウォッチ', 'メタナイト', 'ピット', 'ブラックピット', 'ゼロスーツサムス', 'ワリオ', 'スネーク', 'アイク', 'ポケモントレーナー', 'ディディーコング', 'リュカ', 'ソニック', 'デデデ', 'ピクミン&オリマー', 'ルカリオ', 'ロボット', 'トゥーンリンク', 'ウルフ', 'むらびと', 'ロックマン', 'Wii Fit トレーナー', 'ロゼッタ&チコ', 'リトル・マック', 'ゲッコウガ', 'Miiファイター', 'パルテナ', 'パックマン', 'ルフレ', 'シュルク', 'クッパJr.', 'ダックハント', 'リュウ', 'ケン', 'クラウド', 'カムイ', 'ベヨネッタ', 'インクリング', 'リドリー', 'シモン', 'リヒター', 'キングクルール', 'しずえ', 'ガオガエン', 'パックンフラワー', 'ジョーカー', '勇者', 'バンジョー&カズーイ', 'テリー', 'ベレト/ベレス', 'ミェンミェン', 'スティーブ/アレックス', 'セフィロス', 'ホムラ/ヒカリ', 'カズヤ', 'ソラ'];
+// The roster is fixed: anything else would end up in opponents' permanent match history.
+// The Mii fighters count as three (格闘・剣術・射撃); older records may still say 'Miiファイター'.
+const FIGHTERS = ['マリオ', 'ドンキーコング', 'リンク', 'サムス', 'ダークサムス', 'ヨッシー', 'カービィ', 'フォックス', 'ピカチュウ', 'ルイージ', 'ネス', 'キャプテン・ファルコン', 'プリン', 'ピーチ', 'デイジー', 'クッパ', 'アイスクライマー', 'シーク', 'ゼルダ', 'ドクターマリオ', 'ピチュー', 'ファルコ', 'マルス', 'ルキナ', 'こどもリンク', 'ガノンドロフ', 'ミュウツー', 'ロイ', 'クロム', 'Mr.ゲーム&ウォッチ', 'メタナイト', 'ピット', 'ブラックピット', 'ゼロスーツサムス', 'ワリオ', 'スネーク', 'アイク', 'ポケモントレーナー', 'ディディーコング', 'リュカ', 'ソニック', 'デデデ', 'ピクミン&オリマー', 'ルカリオ', 'ロボット', 'トゥーンリンク', 'ウルフ', 'むらびと', 'ロックマン', 'Wii Fit トレーナー', 'ロゼッタ&チコ', 'リトル・マック', 'ゲッコウガ', '格闘Mii', '剣術Mii', '射撃Mii', 'パルテナ', 'パックマン', 'ルフレ', 'シュルク', 'クッパJr.', 'ダックハント', 'リュウ', 'ケン', 'クラウド', 'カムイ', 'ベヨネッタ', 'インクリング', 'リドリー', 'シモン', 'リヒター', 'キングクルール', 'しずえ', 'ガオガエン', 'パックンフラワー', 'ジョーカー', '勇者', 'バンジョー&カズーイ', 'テリー', 'ベレト/ベレス', 'ミェンミェン', 'スティーブ/アレックス', 'セフィロス', 'ホムラ/ヒカリ', 'カズヤ', 'ソラ'];
 const fighterOf = (v, { optional = false } = {}) => {
   const s = String(v ?? '').trim();
   if (!s) {
@@ -342,7 +343,8 @@ async function updateStages(ctx) {
   const keys = Object.keys(raw);
   if (keys.length > 120) throw new HttpError(400, '設定が多すぎます');
   for (const k of keys) {
-    if (typeof k !== 'string' || k.length > 40) continue;
+    // Only fighters on the roster (an entry for a retired name is dropped when the page saves)
+    if (!FIGHTERS.includes(k)) continue;
     const s = cleanStages(raw[k]);
     if (s.length) byFighter[k] = s;
   }
@@ -363,9 +365,12 @@ async function updateStages(ctx) {
 // ID token; e-mail is not kept after Discord linking)
 const ADMIN_SUBS = (process.env.ADMIN_SUB || '').split(',').map((s) => s.trim()).filter(Boolean);
 const isAdminSub = (sub) => Boolean(sub) && ADMIN_SUBS.includes(sub);
+// Verification environment: anyone signed in with Discord is an admin as well (checks of another
+// player's account still go by ADMIN_SUB only)
+const DISCORD_ADMINS = process.env.DISCORD_ADMINS === '1';
 const HIDE_ADMIN_BADGE = process.env.HIDE_ADMIN_BADGE === '1';
 function isAdmin(ctx) {
-  return isAdminSub(ctx.claims?.sub);
+  return isAdminSub(ctx.claims?.sub) || (DISCORD_ADMINS && isDiscordAccount(ctx));
 }
 // Admin actions are written to an append-only trail so a compromised admin account
 // leaves evidence of exactly what it touched. Kept for a year.
@@ -457,12 +462,20 @@ async function updateSite(ctx) {
   };
   const notices = Array.isArray(b.notices) ? b.notices : [];
   if (notices.length > 20) throw new HttpError(400, 'お知らせは20件までです');
-  site.notices = notices.map((n, i) => ({
-    id: /^[\w-]{1,40}$/.test(n?.id) ? n.id : `n${Date.now().toString(36)}${i}`,
-    at: text(n?.at, { name: 'お知らせの日付', max: 20 }),
-    title: text(n?.title, { name: 'お知らせのタイトル', max: 100 }),
-    body: text(n?.body, { name: 'お知らせの本文', max: 5000, optional: true }),
-  }));
+  // When each notice first went up (the top and rated-match pages point to it for a day). Editing a
+  // notice keeps its time; notices from before this was recorded have none.
+  const before = new Map(((await get('SITE', 'CONFIG'))?.notices ?? []).map((n) => [n.id, n]));
+  site.notices = notices.map((n, i) => {
+    const id = /^[\w-]{1,40}$/.test(n?.id) ? n.id : `n${Date.now().toString(36)}${i}`;
+    const postedAt = before.has(id) ? before.get(id).postedAt : nowIso();
+    return {
+      id,
+      at: text(n?.at, { name: 'お知らせの日付', max: 20 }),
+      title: text(n?.title, { name: 'お知らせのタイトル', max: 100 }),
+      body: text(n?.body, { name: 'お知らせの本文', max: 5000, optional: true }),
+      ...(postedAt ? { postedAt } : {}),
+    };
+  });
   for (const key of DOC_KEYS) {
     const d = b.docs?.[key];
     if (!d) continue;
@@ -886,7 +899,7 @@ async function enqueue(ctx) {
   // The season closes by itself at its end date (rooms already matched can still report)
   const season = await currentSeason();
   if (season.ended) throw new HttpError(409, `${seasonLabel(season)}レーティング対戦は終了しました`);
-  const fighter = ctx.body.fighter === OMAKASE ? OMAKASE : fighterOf(ctx.body.fighter, { optional: true }) || p.fighter;
+  const fighter = ctx.body.fighter === OMAKASE ? OMAKASE : fighterOf(ctx.body.fighter, { optional: true }) || (FIGHTERS.includes(p.fighter) ? p.fighter : '');
   if (!fighter) throw new HttpError(400, '1戦目に使用するキャラを選択してください');
   // Remember it so the lobby pre-selects the same character next time
   await ddb.send(new UpdateCommand({
@@ -2337,7 +2350,7 @@ async function adminDeleteUser(ctx, uid) {
 async function withdrawMe(ctx) {
   const uid = requireUser(ctx);
   if (ctx.query.confirm !== 'withdraw') throw new HttpError(400, '退会の確認ができませんでした。もう一度お試しください');
-  if (isAdminSub(uid)) throw new HttpError(400, '管理者のアカウントは退会できません');
+  if (isAdmin(ctx)) throw new HttpError(400, '管理者のアカウントは退会できません');
   const [current, mismatches, unsettled] = await Promise.all([
     activeCurrent(uid),
     query({ KeyConditionExpression: 'pk = :p AND begins_with(sk, :s)', ExpressionAttributeValues: { ':p': `USER#${uid}`, ':s': 'MISMATCH#' } }),

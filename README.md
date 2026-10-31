@@ -79,7 +79,7 @@ npx cdk synth
 
 ## このリポジトリに含まれないもの
 
-- **ゲームのキャラクター画像・ステージ画像など**：各権利者の著作物のため含めていません（`web/assets/fighters/`・`web/assets/stages/` など）。そのため、このリポジトリだけではサイトの見た目は完全には再現されません。
+- **ゲームのキャラクター画像・ステージ画像など**：各権利者の著作物のため含めていません（`web/assets/roster/`・`web/assets/fighters/`・`web/assets/stages/` など）。そのため、このリポジトリだけではサイトの見た目は完全には再現されません。
 - **設定値と秘密情報**：`cdk.json`（形式は `cdk.example.json` を参照）、CloudFront と API の間の秘密値、Discord のクライアントシークレットなどは含めていません。
 
 ## ライセンス
